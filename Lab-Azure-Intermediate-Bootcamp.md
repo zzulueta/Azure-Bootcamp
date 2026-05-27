@@ -525,15 +525,15 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
      --admin-password <password> \
      --size Standard_B2s \
      --custom-data @- <<'EOF'
-        #ps1_sysnative
-        Install-WindowsFeature -name Web-Server -IncludeManagementTools
-        Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
-        Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm0</h1>"
-        New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
-        Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm0</h1>"
-        New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
-        Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm0</h1>"
-        EOF
+    #ps1_sysnative
+    Install-WindowsFeature -name Web-Server -IncludeManagementTools
+    Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
+    Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm0</h1>"
+    New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
+    Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm0</h1>"
+    New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
+    Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm0</h1>"
+    EOF
    ```
    
    > This script installs IIS, removes the default page, and creates custom pages for the root, `/image`, and `/video` paths.
