@@ -545,6 +545,10 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 8. Create vm1 with IIS installed via custom-data:
 
+   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity.
+   > Ensure you modify the Resource Group to match the one you created in Task 1.
+
+
    ```bash
    az vm create \
      --resource-group RG-Lab-Integrated-yourname \
@@ -558,15 +562,15 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
      --admin-password <password> \
      --size Standard_B2s \
      --custom-data @- <<'EOF'
-#ps1_sysnative
-Install-WindowsFeature -name Web-Server -IncludeManagementTools
-Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
-Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm1</h1>"
-New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
-Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm1</h1>"
-New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
-Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm1</h1>"
-EOF
+   #ps1_sysnative
+   Install-WindowsFeature -name Web-Server -IncludeManagementTools
+   Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
+   Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm1</h1>"
+   New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
+   Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm1</h1>"
+   New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
+   Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm1</h1>"
+   EOF
    ```
 
 9. Wait for the deployment to complete.
