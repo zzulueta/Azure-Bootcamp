@@ -31,12 +31,12 @@ In this lab you build a complete multi-tier Azure architecture that integrates n
 
 Your organisation is deploying a multi-tier retail application to Azure. The application has several distinct requirements that span networking, compute, and storage:
 
-- Core IT services (DNS, security infrastructure) must live in a dedicated `CoreServicesVnet`
+- Core IT services (database and other shared services) must live in a dedicated `CoreServicesVnet`
 - The public-facing application tier runs in a separate `AppVnet` with two web server VMs
 - The two VNets must be connected via peering while remaining isolated from the internet
 - Secure VM access must be provided without exposing RDP ports directly to the internet
 - Product images and order receipts need cost-effective Blob Storage with automatic tiering
-- A legacy ERP system requires a shared network file system (Azure Files) accessible from multiple VMs simultaneously
+- Web servers require a shared network file system (Azure Files) accessible from multiple VMs simultaneously
 - Web traffic must be distributed across backend VMs using both Layer 4 and Layer 7 load balancing
 
 You have been tasked with building this complete environment using a combination of portal, CLI, and Infrastructure as Code approaches.
@@ -111,6 +111,8 @@ Virtual networks are the foundational building block for private networking in A
    | Subscription | Your subscription |
    | Resource group | `RG-Lab-Integrated-yourname` (replace `yourname` with your initials) |
    | Region | **Australia East** (keep consistent throughout the lab) |
+   
+   > **Note**: For EMEA-based students, use **West Europe**. The region must be the same for all resources in this lab.
 
 4. Select **Review + create**, then **Create**.
 
@@ -126,7 +128,7 @@ Virtual networks are the foundational building block for private networking in A
    | Name | `CoreServicesVnet` |
    | Region | **Australia East** |
 
-7. Select the **IP addresses** tab. Replace the default IPv4 address space with `10.20.0.0/16`.
+7. Select the **Address space** tab. Replace the default IPv4 address space with `10.20.0.0/16`.
 
 8. Delete the default subnet, then select **+ Add a subnet** for each of the following. Select **Add** after each:
 
@@ -134,7 +136,8 @@ Virtual networks are the foundational building block for private networking in A
    | --- | --- | --- | --- |
    | First | `SharedServicesSubnet` | `10.20.10.0` | `/24` |
    | Second | `DatabaseSubnet` | `10.20.20.0` | `/24` |
-   | Third | `AzureBastionSubnet` | `10.20.30.0` | `/26` |
+   
+   For the third subnet, select Azure Bastion as the Subnet purpose, then set the Starting address to `10.20.30.0` and size to `/26`:
 
    > **Note:** Every virtual network must have at least one subnet. Azure reserves five IP addresses within each subnet (the network address, broadcast address, and three addresses reserved by Azure), so a /24 gives you 251 usable addresses.
    
@@ -154,7 +157,7 @@ Virtual networks are the foundational building block for private networking in A
     | Name | `AppVnet` |
     | Region | **Australia East** |
 
-12. On the **IP addresses** tab, replace the address space with `10.60.0.0/16`.
+12. On the **Address space** tab, replace the address space with `10.60.0.0/16`.
 
 13. Delete the default subnet and add the following subnets:
 
@@ -247,7 +250,7 @@ Network Security Groups (NSGs) filter inbound and outbound traffic using priorit
 
 14. Select **OK**.
 
-15. Confirm the **Subnets** blade now shows **CoreServicesVnet/DatabaseSubnet**.
+15. Confirm the **Subnets** blade now shows **DatabaseSubnet**.
 
 ### Setup Bastion for VM access
 
@@ -277,8 +280,6 @@ Azure Bastion is a fully managed PaaS service that provides secure and seamless 
     | --- | --- |
     | Public IP address | **Create new** |
     | Public IP address name | `az104-bastion-pip` |
-    | Public IP address SKU | **Standard** (auto-selected) |
-    | Assignment | **Static** (auto-selected) |
 
 19. Select **Review + create**, then **Create**.
 
@@ -318,7 +319,7 @@ Azure DNS provides both public and private DNS hosting. In this task you create 
 
 4. Once deployed, select **Go to resource**.
 
-5. Select **+ Record set** and add an A record:
+5. Go to **DNS Management > Record sets** and select **+ Add** to add an A record:
 
    | Setting | Value |
    | --- | --- |
@@ -328,7 +329,7 @@ Azure DNS provides both public and private DNS hosting. In this task you create 
    | TTL unit | **Hours** |
    | IP address | `10.60.1.4` (example IP — use any valid IP) |
 
-6. Select **OK**.
+6. Select **Add**.
 
 ### Create a private DNS zone
 
@@ -359,7 +360,7 @@ Azure DNS provides both public and private DNS hosting. In this task you create 
 
     > **Auto-registration:** When enabled, Azure automatically creates and maintains DNS A records for every VM in the linked VNet. When a VM starts, its record is created. When it stops, the record is removed. No manual DNS management required.
 
-13. Select **OK** and wait for the link to be created.
+13. Select **Create** and wait for the link to be created.
 
 ### Link the private zone to AppVnet (resolution only)
 
@@ -373,7 +374,7 @@ Azure DNS provides both public and private DNS hosting. In this task you create 
 
     > **Why no auto-registration?** The AppVnet VMs do not need their names registered in the private zone — they only need to resolve names registered from CoreServicesVnet. This is a resolution-only link.
 
-15. Select **OK**.
+15. Select **Create**.
 
 16. Confirm both VNet links appear in the **Virtual network links** blade.
 
@@ -383,7 +384,7 @@ Azure DNS provides both public and private DNS hosting. In this task you create 
 
 ## Task 4: Deploy CoreServicesVM via Portal
 
-In this task you deploy a Windows Server virtual machine using the Azure portal. This VM will be used to verify connectivity across the peered VNets and to access the backend VMs via their private IPs.
+In this task you deploy a Windows Server virtual machine using the Azure portal. This VM will be used to verify connectivity across the peered VNets. It will be deployed in the `SharedServicesSubnet` of the `CoreServicesVnet` and accessed securely via Azure Bastion without exposing RDP ports to the internet. It will be given an internal DNS name of `coreservicesvm.private.adventuretravel.com` via the private DNS zone. Our backend VMs in the AppVnet will be able to reach this VM on its private IP address once peering is configured in Task 9.
 
 ### Create the virtual machine
 
@@ -398,7 +399,7 @@ In this task you deploy a Windows Server virtual machine using the Azure portal.
    | Region | **Australia East** |
    | Availability options | **No infrastructure redundancy required** |
    | Security type | **Standard** |
-   | Image | **Windows Server 2022 Datacenter – x64 Gen2** |
+   | Image | **Windows Server 2022 Datacenter: Azure Edition Hotpatch – x64 Gen2** |
    | VM architecture | **x64** |
    | Size | **Standard_B2s** (2 vCPUs, 4 GiB RAM) |
 
@@ -436,22 +437,26 @@ In this task you deploy a Windows Server virtual machine using the Azure portal.
 
 8. Once deployed, select **Go to resource**.
 
-9. Select **Connect** from the top toolbar, then select **Connect via Bastion** (or select the **Bastion** tab).
+9. In the Overview blade, confirm the following:
+    - **Virtual network** shows **CoreServicesVnet**
+    - **Subnet** shows **SharedServicesSubnet**
+    - **Public IP address** shows **None**
+    - **Private IP address** shows `10.20.10.4`
 
-10. On the Bastion connection page, enter the credentials:
+10. Select **Connect** from the top toolbar, then select **Connect via Bastion** (or select the **Bastion** tab).
+
+11. On the Bastion connection page, enter the credentials:
 
     | Setting | Value |
     | --- | --- |
     | Username | `azureuser` |
     | Password | The password you set during VM creation |
 
-11. Select **Connect**. A new browser tab will open with the VM desktop session.
+12. Select **Connect**. A new browser tab will open with the VM desktop session.
 
     > **How it works:** Azure Bastion establishes an RDP connection to the VM over its private IP address. The connection from your browser to Bastion uses HTTPS (port 443), and Bastion connects to the VM using RDP over the private network. No public IP address or exposed RDP port is required on the VM.
 
-12. **Keep the browser tab open** — you will use this VM to access the backend VMs later in the lab.
-
-**Key point:** CoreServicesVM is now running in the CoreServicesVnet and can be accessed via RDP. Once VNet peering is configured in Task 9, this VM will be able to reach resources in AppVnet using their private IPs.
+**Key point:** CoreServicesVM is now running in the CoreServicesVnet and can be accessed via Bastion securely. Once VNet peering is configured in Task 9, this VM will be reached by the backend VMs in the AppVnet using its private IP address.
 
 ---
 
@@ -461,7 +466,7 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 ### Create the NSG for backend VMs
 
-1. Open **Cloud Shell** (Bash) from the top-right of the Azure portal. If prompted, select **Bash** and create storage.
+1. Open **Cloud Shell** (Bash) from the top-right of the Azure portal. If prompted, select **Bash**. No need to create storage.
 
 2. Verify your subscription:
 
@@ -483,6 +488,8 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
      --name app-nsg \
      --location australiaeast
    ```
+   > Ensure you modify the Resource Group to match the one you created in Task 1.
+   > For EMEA-based students, change the location to `westeurope`.
 
 5. Add a rule to allow HTTP traffic:
 
@@ -496,12 +503,14 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
      --destination-port-ranges 80 \
      --access Allow
    ```
-
+   > Ensure you modify the Resource Group to match the one you created in Task 1.
+   
 ### Deploy vm0 in BackendSubnet1
 
 6. Create vm0 with IIS installed via custom-data:
 
    > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity.
+   > Ensure you modify the Resource Group to match the one you created in Task 1.
 
    ```bash
    az vm create \
@@ -516,17 +525,18 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
      --admin-password <password> \
      --size Standard_B2s \
      --custom-data @- <<'EOF'
-#ps1_sysnative
-Install-WindowsFeature -name Web-Server -IncludeManagementTools
-Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
-Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm0</h1>"
-New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
-Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm0</h1>"
-New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
-Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm0</h1>"
-EOF
+        #ps1_sysnative
+        Install-WindowsFeature -name Web-Server -IncludeManagementTools
+        Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
+        Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm0</h1>"
+        New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
+        Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm0</h1>"
+        New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
+        Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm0</h1>"
+        EOF
    ```
-
+   
+   > This script installs IIS, removes the default page, and creates custom pages for the root, `/image`, and `/video` paths.
    > **Note:** The `--no-wait` flag is omitted to allow you to see any errors immediately. In production scripts, use `--no-wait` and deploy VMs in parallel.
 
 7. Wait for the deployment to complete (approximately 3–5 minutes).
