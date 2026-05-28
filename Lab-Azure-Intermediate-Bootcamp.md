@@ -384,7 +384,7 @@ Azure DNS provides both public and private DNS hosting. In this task you create 
 
 ## Task 4: Deploy CoreServicesVM via Portal
 
-In this task you deploy a Windows Server virtual machine using the Azure portal. This VM will be used to verify connectivity across the peered VNets. It will be deployed in the `SharedServicesSubnet` of the `CoreServicesVnet` and accessed securely via Azure Bastion without exposing RDP ports to the internet. It will be given an internal DNS name of `coreservicesvm.private.adventuretravel.com` via the private DNS zone. Our backend VMs in the AppVnet will be able to reach this VM on its private IP address once peering is configured in Task 9.
+In this task you deploy a Windows Server virtual machine using the Azure portal. This VM will be used to verify connectivity across the peered VNets. It will be deployed in the `SharedServicesSubnet` of the `CoreServicesVnet` and accessed securely via Azure Bastion without exposing RDP ports to the internet. It will be given an internal DNS name of `coreservicesvm.private.adventuretravel.com` via the private DNS zone. Our backend VMs in the AppVnet will be able to reach this VM on its private IP address once peering is configured in Task 6.
 
 ### Create the virtual machine
 
@@ -456,7 +456,7 @@ In this task you deploy a Windows Server virtual machine using the Azure portal.
 
     > **How it works:** Azure Bastion establishes an RDP connection to the VM over its private IP address. The connection from your browser to Bastion uses HTTPS (port 443), and Bastion connects to the VM using RDP over the private network. No public IP address or exposed RDP port is required on the VM.
 
-**Key point:** CoreServicesVM is now running in the CoreServicesVnet and can be accessed via Bastion securely. Once VNet peering is configured in Task 9, this VM will be reached by the backend VMs in the AppVnet using its private IP address.
+**Key point:** CoreServicesVM is now running in the CoreServicesVnet and can be accessed via Bastion securely. Once VNet peering is configured in Task 6, this VM will be reached by the backend VMs in the AppVnet using its private IP address.
 
 13. Close the Bastion session tab when finished.
 
@@ -625,6 +625,7 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 12. Note the private IP addresses. You will use these later.
 
 **Key point:** Both backend VMs are now deployed in the AppVnet with IIS installed and custom content. They do not have public IP addresses and are protected by the NSG that allows only HTTP traffic. Once VNet peering is configured in Task 6, these VMs will be able to reach CoreServicesVM in the CoreServicesVnet on its private IP address, while remaining isolated from the internet.
+
 ---
 
 ## Task 6: Configure Virtual Network Peering
