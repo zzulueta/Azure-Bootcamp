@@ -1226,16 +1226,40 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
    | Target | **az104-06-vm0VMNic** |
    | Target | **az104-06-vm1VMNic** |
 
-6. Select **Add** to save the backend pool.
+7. Select **Add** to save the backend pool.
 
-7. Select **Next: Configuration**, then **+ Add a routing rule**:
+8. Select **+ Add a backend pool** again:
+
+   **Images pool (vm0 only):**
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | `az104-imagebe` |
+   | Target type | **Virtual machine** |
+   | Target | **az104-06-vm0 (NIC)** |
+
+9. Select **Add**.
+
+10. Select **+ Add a backend pool** again:
+
+    **Videos pool (vm1 only):**
+
+    | Setting | Value |
+    | --- | --- |
+    | Name | `az104-videobe` |
+    | Target type | **Virtual machine** |
+    | Target | **az104-06-vm1 (NIC)** |
+
+11. Select **Add**.
+
+12. Select **Next: Configuration**, then **+ Add a routing rule**:
 
     | Setting | Value |
     | --- | --- |
     | Rule name | `az104-gwrule` |
     | Priority | `10` |
 
-8. On the **Listener** tab:
+13. On the **Listener** tab:
 
     | Setting | Value |
     | --- | --- |
@@ -1244,8 +1268,9 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Protocol | **HTTP** |
     | Port | `80` |
     | Listener type | **Basic** |
+    | Error page url | **No** |
 
-9. On the **Backend targets** tab:
+14. On the **Backend targets** tab:
 
     | Setting | Value |
     | --- | --- |
@@ -1253,7 +1278,7 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend target | `az104-appgwbe` |
     | Backend settings | **Add new** |
 
-10. In the **Add Backend setting** dialog:
+15. In the **Add Backend setting** dialog:
 
     | Setting | Value |
     | --- | --- |
@@ -1264,11 +1289,11 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Connection draining | **Disable** |
     | Request time-out (seconds) | `20` |
 
-11. Select **Add** to save the backend setting.
+16. Select **Add** to save the backend setting.
 
-12. Back on the **Backend targets** tab, select **Add multiple targets to create a path-based rule**.
+17. Back on the **Backend targets** tab, select **Add multiple targets to create a path-based rule**.
 
-13. Add the first path rule:
+18. Add the first path rule:
 
     **Image routing rule:**
 
@@ -1279,9 +1304,9 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend settings | **az104-http** |
     | Backend target | `az104-imagebe` |
 
-14. Select **Add**.
+19. Select **Add**.
 
-15. Add the second path rule:
+20. Add the second path rule:
 
     **Video routing rule:**
 
@@ -1292,27 +1317,27 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend settings | **az104-http** |
     | Backend target | `az104-videobe` |
 
-16. Select **Add**.
+21. Select **Add**.
 
-17. Select **Add** to save the routing rule.
+22. Select **Add** to save the routing rule.
 
-18. Select **Next: Tags**, then **Next: Review + create**, then **Create**.
+23. Select **Next: Tags**, then **Next: Review + create**, then **Create**.
 
     > **Note:** The Application Gateway takes 5–10 minutes to deploy. Continue to Task 12 while it deploys.
 
 ### Test path-based routing
 
-19. Once deployed, navigate to **az104-appgw → Overview** and copy the **Frontend public IP address**.
+24. Once deployed, navigate to **az104-appgw → Overview** and copy the **Frontend public IP address**.
 
-20. Open a browser and navigate to `http://<frontend-ip>/image/`.
+25. Open a browser and navigate to `http://<frontend-ip>/image/`.
 
-21. Confirm you see "Image server - vm0" — the Application Gateway routed the request to vm0 based on the `/image/*` path.
+26. Confirm you see "Image server - vm0" — the Application Gateway routed the request to vm0 based on the `/image/*` path.
 
-22. Open a new browser tab and navigate to `http://<frontend-ip>/video/`.
+27. Open a new browser tab and navigate to `http://<frontend-ip>/video/`.
 
-23. Confirm you see "Video server - vm1" — the request was routed to vm1 based on the `/video/*` path.
+28. Confirm you see "Video server - vm1" — the request was routed to vm1 based on the `/video/*` path.
 
-24. Navigate to `http://<frontend-ip>/` (no path). Confirm the default pool responds — either vm0 or vm1.
+29. Navigate to `http://<frontend-ip>/` (no path). Confirm the default pool responds — either vm0 or vm1.
 
 **What just happened:** The Application Gateway inspected the URL path of each request and forwarded it to the appropriate backend pool. This is Layer 7 routing: the gateway understands HTTP, not just TCP ports.
 
