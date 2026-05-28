@@ -514,16 +514,16 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
    ```bash
    az vm create \
-  --resource-group RG-Lab-Integrated-yourname \
-  --name az104-06-vm0 \
-  --image Win2022Datacenter \
-  --vnet-name AppVnet \
-  --subnet BackendSubnet1 \
-  --nsg app-nsg \
-  --public-ip-address "" \
-  --admin-username azureuser \
-  --admin-password 'P@ssw0rd1234!ChangeMe' \
-  --size Standard_B2s
+   --resource-group RG-Lab-Integrated-yourname \
+   --name az104-06-vm0 \
+   --image Win2022Datacenter \
+   --vnet-name AppVnet \
+   --subnet BackendSubnet1 \
+   --nsg app-nsg \
+   --public-ip-address "" \
+   --admin-username azureuser \
+   --admin-password 'P@ssw0rd1234!ChangeMe' \
+   --size Standard_B2s
    ```
    
    Install IIS and create custom pages:
@@ -556,23 +556,23 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 ### Deploy vm1 in BackendSubnet2
 
-8. Create vm1 with IIS installed via custom-data:
+8. Create vm1:
 
    > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
    > Ensure you modify the Resource Group to match the one you created in Task 1.
 
    ```bash
    az vm create \
-  --resource-group RG-Lab-Integrated-yourname \
-  --name az104-06-vm1 \
-  --image Win2022Datacenter \
-  --vnet-name AppVnet \
-  --subnet BackendSubnet2 \
-  --nsg app-nsg \
-  --public-ip-address "" \
-  --admin-username azureuser \
-  --admin-password 'P@ssw0rd1234!ChangeMe' \
-  --size Standard_B2s
+   --resource-group RG-Lab-Integrated-yourname \
+   --name az104-06-vm1 \
+   --image Win2022Datacenter \
+   --vnet-name AppVnet \
+   --subnet BackendSubnet2 \
+   --nsg app-nsg \
+   --public-ip-address "" \
+   --admin-username azureuser \
+   --admin-password 'P@ssw0rd1234!ChangeMe' \
+   --size Standard_B2s
    ```
    
    Install IIS and create custom pages:
