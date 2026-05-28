@@ -29,7 +29,7 @@ In this lab you build a complete multi-tier Azure architecture that integrates n
 
 ## Lab Scenario
 
-Your organisation is deploying a multi-tier retail application to Azure. The application has several distinct requirements that span networking, compute, and storage:
+Your organization is deploying a multi-tier retail application to Azure. The application has several distinct requirements that span networking, compute, and storage:
 
 - Core IT services (database and other shared services) must live in a dedicated `CoreServicesVnet`
 - The public-facing application tier runs in a separate `AppVnet` with two web server VMs
@@ -78,14 +78,14 @@ RG-Lab-Integrated-yourname
 ## Job Skills
 
 - Task 1: Create resource group and virtual networks
-- Task 2: Protect the database subnet with a Network Security Group and setup Bastion for VM access
+- Task 2: Protect the database subnet with a Network Security Group and set up Bastion for VM access
 - Task 3: Configure public and private Azure DNS zones
 - Task 4: Deploy CoreServicesVM via Portal
 - Task 5: Deploy vm0 and vm1 via CLI with IIS
-- Task 6: Deploy storage account using ARM and Bicep templates
-- Task 7: Configure Blob Storage with lifecycle management
-- Task 8: Create Azure Files and mount on both VMs
-- Task 9: Configure virtual network peering
+- Task 6: Configure Virtual Network Peering
+- Task 7: Deploy Storage Account Using ARM and Bicep Templates
+- Task 8: Create Azure Files and Mount on Both VMs
+- Task 9: Configure Blob Storage with Lifecycle Management
 - Task 10: Configure Azure Load Balancer (Layer 4)
 - Task 11: Configure Application Gateway with path-based routing (Layer 7)
 - Task 12: Verification and cleanup
@@ -252,7 +252,7 @@ Network Security Groups (NSGs) filter inbound and outbound traffic using priorit
 
 15. Confirm the **Subnets** blade now shows **DatabaseSubnet**.
 
-### Setup Bastion for VM access
+### Set up Bastion for VM access
 
 Azure Bastion is a fully managed PaaS service that provides secure and seamless RDP and SSH connectivity to your virtual machines directly through the Azure portal over TLS. When you connect via Azure Bastion, your VMs do not need a public IP address, agent, or special client software. In this task you deploy Azure Bastion in the CoreServicesVnet to provide secure access to all VMs without exposing them to the public internet.
 
@@ -284,13 +284,6 @@ Azure Bastion is a fully managed PaaS service that provides secure and seamless 
 19. Select **Review + create**, then **Create**.
 
     > **Note:** Azure Bastion deployment typically takes 8-10 minutes. You can continue to the next task while Bastion deploys. You will use Bastion to connect to CoreServicesVM in Task 4.
-
-20. Wait for the deployment to complete. Once finished, select **Go to resource**.
-
-21. On the Bastion **Overview** page, confirm the following:
-    - **Virtual network** shows **CoreServicesVnet**
-    - **Subnet** shows **AzureBastionSubnet**
-    - **Public IP address** shows **az104-bastion-pip**
 
 **Key point:** NSG rules are stateful — if an inbound connection is allowed, the corresponding return traffic is automatically permitted without requiring an explicit outbound rule. The default NSG rules allow inbound traffic from the same VNet and outbound traffic to the internet. The custom rules you added override these defaults for the DatabaseSubnet.
 
@@ -437,7 +430,7 @@ In this task you deploy a Windows Server virtual machine using the Azure portal.
 
 8. Once deployed, select **Go to resource**.
 
-9. In the Overview blade, confirm the following:
+9. On the Overview blade, confirm the following:
     - **Virtual network** shows **CoreServicesVnet**
     - **Subnet** shows **SharedServicesSubnet**
     - **Public IP address** shows **None**
@@ -511,7 +504,7 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 6. Create vm0:
 
-   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
+   > **Important:** Replace `P@ssw0rd1234!ChangeMe` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
    > Ensure you modify the Resource Group to match the one you created in Task 1.
 
    ```bash
@@ -560,7 +553,7 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 8. Create vm1:
 
-   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
+   > **Important:** Replace `P@ssw0rd1234!ChangeMe` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
    > Ensure you modify the Resource Group to match the one you created in Task 1.
 
    ```bash
@@ -706,96 +699,13 @@ Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreSe
 
     > **What this proves:** This confirms four things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses, and (4) Bastion provides seamless access to VMs in peered VNets without needing public IPs or exposed RDP ports.
 
-17. Keep the Bastion session open for now — you will use it again in Task 7.
+17. Keep the Bastion session open for now — you will use it again in future tasks.
 
 **Key point:** Virtual network peering is non-transitive by default. If VNet A peers with VNet B, and VNet B peers with VNet C, VNet A cannot reach VNet C through VNet B. To achieve transitive routing, use either a Network Virtual Appliance or Azure Virtual WAN.
 
 ---
 
-## Task 7: Create Azure Files and Mount on Both VMs
-
-Azure Files provides fully managed SMB file shares hosted inside a standard Azure Storage account. Unlike Blob Storage, which exposes objects via HTTP/HTTPS, Azure Files exposes a true file system hierarchy that Windows machines can mount as a network drive (Z:).
-
-### Create the Azure File Share
-
-1. In the storage account, under **Data storage**, select **Classic file shares**.
-
-2. Select **+ Classic file share** and configure:
-
-   | Setting | Value |
-   | --- | --- |
-   | Name | `erp-share` |
-   | Tier | **Transaction optimized** |
-
-3. Select **Review + Create**, then **Create**.
-
-4. Open the `erp-share` file share.
-
-5. Select **+ Add directory** and create two folders:
-   - `invoices`
-   - `reports`
-
-6. Under **Browse**, select the `invoices` directory, then **Upload** and upload any small file from your local machine as a test fixture.
-
-### Retrieve the mount script for vm0
-
-7. Navigate back to the `erp-share` overview page.
-
-8. Select **Connect** from the top toolbar.
-
-9. Select **Windows**, then **Show script**.
-
-10. Copy the entire PowerShell script to your clipboard.
-
-### Mount the share on vm0
-
-11. Switch to your vm0 Bastion session (or reconnect if you closed it). You will run the mount script inside the VM to connect to the Azure File Share.
-
-12. Open **PowerShell** as Administrator. Right-click the Windows PowerShell icon and select **Run as administrator**.
-
-13. Paste the mount script you copied earlier and press **Enter**.
-
-14. Verify the mount:
-
-    ```powershell
-    Get-PSDrive Z
-    ```
-
-15. The output should show drive `Z:` with a `Root` of `\\storageaccountname.file.core.windows.net\erp-share`.
-
-16. Open **File Explorer** and confirm drive `Z:` appears under **This PC**. Open it — you should see the `invoices` and `reports` directories.
-
-17. Create a new text file in `Z:\invoices`:
-
-    ```powershell
-    "Test from vm0" | Out-File Z:\invoices\test-from-vm0.txt
-    ```
-
-### Mount the share on vm1
-
-18. Disconnect from az104-06-vm0's RDP session.
-
-19. Connect to az104-06-vm1 via Bastion using the same steps as before (select vm1, Connect via Bastion, enter credentials).
-
-20. Repeat steps 12-16 for **az104-06-vm1** to mount the same Azure File Share on vm1 as drive `Z:`.
-
-### Verify shared storage
-
-21. Create a new text file:
-
-    ```powershell
-    "Test from vm1" | Out-File Z:\invoices\test-from-vm1.txt
-    ```
-
-22. Open **File Explorer** on az104-06-vm1 and confirm the file appears in `Z:\invoices`. You should also see the `test-from-vm0.txt` file created from az104-06-vm0. This demonstrates that Azure Files behaves like a real network share with real-time synchronization.
-
-23. Go back to the Storage Account in the Azure portal, select the **Storage browser**, navigate to the Classic file shares > `erp-share` file share, and confirm both files appear in the `invoices` directory.
-
-**Key point:** Azure Files provides true SMB 3.0 file shares that multiple VMs can mount simultaneously. Unlike Blob Storage, which requires HTTP clients and has no concept of file locking, Azure Files supports standard Windows file operations, NTFS permissions (when using Active Directory integration), and concurrent access from multiple clients.
-
----
-
-## Task 8: Deploy Storage Account Using ARM and Bicep Templates
+## Task 7: Deploy Storage Account Using ARM and Bicep Templates
 
 In this task you deploy a storage account using an ARM template that demonstrates all five template sections: parameters, variables, functions, resources, and outputs. You will then convert the ARM template to Bicep, deploy it, and compare the two approaches. This demonstrates Infrastructure as Code best practices for repeatable, version-controlled deployments.
 
@@ -998,13 +908,96 @@ In our lab scenario, the Storage Account can be used to store product images and
 
 ---
 
+## Task 8: Create Azure Files and Mount on Both VMs
+
+Azure Files provides fully managed SMB file shares hosted inside a standard Azure Storage account. Unlike Blob Storage, which exposes objects via HTTP/HTTPS, Azure Files exposes a true file system hierarchy that Windows machines can mount as a network drive (Z:).
+
+### Create the Azure File Share
+
+1. In the Azure portal, navigate to one of the storage accounts previously created (e.g., `stlabintdevxyz123abc`). Under **Data storage**, select **Classic file shares**.
+
+2. Select **+ Classic file share** and configure:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | `erp-share` |
+   | Tier | **Transaction optimized** |
+
+3. Select **Review + Create**, then **Create**.
+
+4. Open the `erp-share` file share.
+
+5. Select **+ Add directory** and create two folders:
+   - `invoices`
+   - `reports`
+
+6. Under **Browse**, select the `invoices` directory, then **Upload** and upload any small file from your local machine as a test fixture.
+
+### Retrieve the mount script for vm0
+
+7. Navigate back to the `erp-share` overview page.
+
+8. Select **Connect** from the top toolbar.
+
+9. Select **Windows**, then **Show script**.
+
+10. Copy the entire PowerShell script to your clipboard.
+
+### Mount the share on vm0
+
+11. Switch to your vm0 Bastion session (or reconnect if you closed it). You will run the mount script inside the VM to connect to the Azure File Share.
+
+12. Open **PowerShell** as Administrator. Right-click the Windows PowerShell icon and select **Run as administrator**.
+
+13. Paste the mount script you copied earlier and press **Enter**.
+
+14. Verify the mount:
+
+    ```powershell
+    Get-PSDrive Z
+    ```
+
+15. The output should show drive `Z:` with a `Root` of `\\storageaccountname.file.core.windows.net\erp-share`.
+
+16. Open **File Explorer** and confirm drive `Z:` appears under **This PC**. Open it — you should see the `invoices` and `reports` directories.
+
+17. Create a new text file in `Z:\invoices`:
+
+    ```powershell
+    "Test from vm0" | Out-File Z:\invoices\test-from-vm0.txt
+    ```
+
+### Mount the share on vm1
+
+18. Disconnect from az104-06-vm0's Bastion session.
+
+19. Connect to az104-06-vm1 via Bastion using the same steps as before (select vm1, Connect via Bastion, enter credentials).
+
+20. Repeat steps 12-16 for **az104-06-vm1** to mount the same Azure File Share on vm1 as drive `Z:`.
+
+### Verify shared storage
+
+21. Create a new text file:
+
+    ```powershell
+    "Test from vm1" | Out-File Z:\invoices\test-from-vm1.txt
+    ```
+
+22. Open **File Explorer** on az104-06-vm1 and confirm the file appears in `Z:\invoices`. You should also see the `test-from-vm0.txt` file created from az104-06-vm0. This demonstrates that Azure Files behaves like a real network share with real-time synchronization.
+
+23. Go back to the Storage Account in the Azure portal, select the **Storage browser**, navigate to the Classic file shares > `erp-share` file share, and confirm both files appear in the `invoices` directory.
+
+**Key point:** Azure Files provides true SMB 3.0 file shares that multiple VMs can mount simultaneously. Unlike Blob Storage, which requires HTTP clients and has no concept of file locking, Azure Files supports standard Windows file operations, NTFS permissions (when using Active Directory integration), and concurrent access from multiple clients.
+
+---
+
 ## Task 9: Configure Blob Storage with Lifecycle Management
 
 In this task you create a blob container, upload files, and configure a lifecycle management policy to automatically move blobs between access tiers as they age. This reduces storage costs without application code changes.
 
 ### Create a blob container
 
-1. In the Azure portal, navigate to one of the storage accounts created in Task 6 (e.g., `stlabintdevxyz123abc`).
+1. In the Azure portal, navigate to one of the storage accounts previously created (e.g., `stlabintdevxyz123abc`).
 
 2. In the left menu under **Data storage**, select **Containers**.
 
@@ -1198,7 +1191,7 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
    | Application gateway name | `az104-appgw` |
    | Region | **Australia East** |
    | Tier | **Standard V2** |
-   | Enable autoscaling | **No** |
+   | Enable autoscaling | **Yes** |
    | Minimum instance count | `2` |
    | Maximum instance count | `10` |
    | HTTP2 | **Disabled** |
@@ -1226,9 +1219,9 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
    | Target | **az104-06-vm0VMNic** |
    | Target | **az104-06-vm1VMNic** |
 
-7. Select **Add** to save the backend pool.
+6. Select **Add** to save the backend pool.
 
-8. Select **+ Add a backend pool** again:
+7. Select **+ Add a backend pool** again:
 
    **Images pool (vm0 only):**
 
@@ -1238,9 +1231,9 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
    | Target type | **Virtual machine** |
    | Target | **az104-06-vm0 (NIC)** |
 
-9. Select **Add**.
+8. Select **Add**.
 
-10. Select **+ Add a backend pool** again:
+9. Select **+ Add a backend pool** again:
 
     **Videos pool (vm1 only):**
 
@@ -1250,16 +1243,16 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Target type | **Virtual machine** |
     | Target | **az104-06-vm1 (NIC)** |
 
-11. Select **Add**.
+10. Select **Add**.
 
-12. Select **Next: Configuration**, then **+ Add a routing rule**:
+11. Select **Next: Configuration**, then **+ Add a routing rule**:
 
     | Setting | Value |
     | --- | --- |
     | Rule name | `az104-gwrule` |
     | Priority | `10` |
 
-13. On the **Listener** tab:
+12. On the **Listener** tab:
 
     | Setting | Value |
     | --- | --- |
@@ -1268,9 +1261,8 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Protocol | **HTTP** |
     | Port | `80` |
     | Listener type | **Basic** |
-    | Error page url | **No** |
 
-14. On the **Backend targets** tab:
+13. On the **Backend targets** tab:
 
     | Setting | Value |
     | --- | --- |
@@ -1278,7 +1270,7 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend target | `az104-appgwbe` |
     | Backend settings | **Add new** |
 
-15. In the **Add Backend setting** dialog:
+14. In the **Add Backend setting** dialog:
 
     | Setting | Value |
     | --- | --- |
@@ -1289,11 +1281,11 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Connection draining | **Disable** |
     | Request time-out (seconds) | `20` |
 
-16. Select **Add** to save the backend setting.
+15. Select **Add** to save the backend setting.
 
-17. Back on the **Backend targets** tab, select **Add multiple targets to create a path-based rule**.
+16. Back on the **Backend targets** tab, select **Add multiple targets to create a path-based rule**.
 
-18. Add the first path rule:
+17. Add the first path rule:
 
     **Image routing rule:**
 
@@ -1304,9 +1296,9 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend settings | **az104-http** |
     | Backend target | `az104-imagebe` |
 
-19. Select **Add**.
+18. Select **Add**.
 
-20. Add the second path rule:
+19. Select **Add multiple targets to create a path-based rule** to add the second path rule:
 
     **Video routing rule:**
 
@@ -1317,27 +1309,27 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend settings | **az104-http** |
     | Backend target | `az104-videobe` |
 
-21. Select **Add**.
+20. Select **Add**.
 
-22. Select **Add** to save the routing rule.
+21. Select **Add** to save the routing rule.
 
-23. Select **Next: Tags**, then **Next: Review + create**, then **Create**.
+22. Select **Next: Tags**, then **Next: Review + create**, then **Create**.
 
-    > **Note:** The Application Gateway takes 5–10 minutes to deploy. Continue to Task 12 while it deploys.
+    > **Note:** The Application Gateway takes 5–10 minutes to deploy.
 
 ### Test path-based routing
 
-24. Once deployed, navigate to **az104-appgw → Overview** and copy the **Frontend public IP address**.
+23. Once deployed, navigate to **az104-appgw → Overview** and copy the **Frontend public IP address**.
 
-25. Open a browser and navigate to `http://<frontend-ip>/image/`.
+24. Open a browser and navigate to `http://<frontend-ip>/image/`.
 
-26. Confirm you see "Image server - vm0" — the Application Gateway routed the request to vm0 based on the `/image/*` path.
+25. Confirm you see "Image server - vm0" — the Application Gateway routed the request to vm0 based on the `/image/*` path.
 
-27. Open a new browser tab and navigate to `http://<frontend-ip>/video/`.
+26. Open a new browser tab and navigate to `http://<frontend-ip>/video/`.
 
-28. Confirm you see "Video server - vm1" — the request was routed to vm1 based on the `/video/*` path.
+27. Confirm you see "Video server - vm1" — the request was routed to vm1 based on the `/video/*` path.
 
-29. Navigate to `http://<frontend-ip>/` (no path). Confirm the default pool responds — either vm0 or vm1.
+28. Navigate to `http://<frontend-ip>/` (no path). Confirm the default pool responds — either vm0 or vm1.
 
 **What just happened:** The Application Gateway inspected the URL path of each request and forwarded it to the appropriate backend pool. This is Layer 7 routing: the gateway understands HTTP, not just TCP ports.
 
@@ -1349,8 +1341,8 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
 
 ### Verification checklist
 
-1. **VNet Peering:** CoreServicesVM can reach vm0 and vm1 via private IPs
-2. **Bastion Access:** Successfully connected to CoreServicesVM via Bastion without public IP
+1. **VNet Peering:** All the VMs in AppVnet can ping CoreServicesVM in CoreServicesVnet on its private IP
+2. **Bastion Access:** Successfully connected to CoreServicesVM via Bastion without public IP. Bastion can access all VMs in peered VNets without additional configuration. RDP ports remain closed to the internet on all VMs.
 3. **DNS Resolution:** CoreServicesVM auto-registered in private DNS zone; vm0 can resolve coreservicesvm.private.adventuretravel.com to correct private IP
 4. **Blob Lifecycle:** Lifecycle policy appears in storage account settings
 5. **Azure Files:** Z: drive visible on vm0 and vm1, files shared in real-time
