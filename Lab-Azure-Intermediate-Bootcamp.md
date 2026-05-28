@@ -604,6 +604,8 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 In this task you deploy a storage account using an ARM template that demonstrates all five template sections: parameters, variables, functions, resources, and outputs. You will then convert the ARM template to Bicep, deploy it, and compare the two approaches. This demonstrates Infrastructure as Code best practices for repeatable, version-controlled deployments.
 
+In our lab scenario, the Storage Account can be used to store product images and order receipts for the retail application. 
+
 ### Create the ARM template
 
 1. In Cloud Shell, create a new file called `storage-template.json`:
@@ -781,7 +783,7 @@ In this task you deploy a storage account using an ARM template that demonstrate
     az deployment group create \
       --resource-group RG-Lab-Integrated-yourname \
       --template-file storage-template.bicep \
-      --parameters storageAccountName=stlabintbicep environment=dev
+      --parameters storageAccountName=stbicep environment=dev
     ```
 
 14. Confirm `"provisioningState": "Succeeded"`.
@@ -789,7 +791,7 @@ In this task you deploy a storage account using an ARM template that demonstrate
 15. List storage accounts to confirm both deployments exist:
 
     > **Important:** Ensure you modify the Resource Group to match the one you created in Task 1.
-    
+
     ```bash
     az storage account list \
       --resource-group RG-Lab-Integrated-yourname \
@@ -801,7 +803,95 @@ In this task you deploy a storage account using an ARM template that demonstrate
 
 ---
 
-## Task 7: Configure Blob Storage with Lifecycle Management
+## Task 7: Configure Virtual Network Peering
+
+Virtual network peering creates a direct, low-latency connection between two VNets over the Microsoft backbone (not the public internet). In this task you configure bidirectional peering between CoreServicesVnet and AppVnet, allowing CoreServicesVM to reach the backend VMs in AppVnet.
+
+### Configure peering from CoreServicesVnet to AppVnet
+
+1. In the Azure portal, navigate to **CoreServicesVnet**.
+
+2. Under **Settings**, select **Peerings**, then **+ Add**.
+
+3. Fill in both sides of the peering simultaneously:
+
+   | Parameter | Value |
+   | --- | --- |
+   | **This virtual network** | |
+   | Peering link name | `CoreServicesVnet-to-AppVnet` |
+   | Allow 'CoreServicesVnet' to access 'AppVnet' | **Checked** (default) |
+   | Allow 'CoreServicesVnet' to receive forwarded traffic from 'AppVnet' | **Checked** |
+   | **Remote virtual network** | |
+   | Peering link name | `AppVnet-to-CoreServicesVnet` |
+   | Virtual network deployment model | **Resource manager** |
+   | Virtual network | **AppVnet (RG-Lab-Integrated-yourname)** |
+   | Allow 'AppVnet' to access 'CoreServicesVnet' | **Checked** (default) |
+   | Allow 'AppVnet' to receive forwarded traffic from 'CoreServicesVnet' | **Checked** |
+
+4. Select **Add** and wait a few seconds.
+
+5. In the **Peerings** blade of `CoreServicesVnet`, confirm the **Peering status** shows **Connected**. Refresh if needed.
+
+6. Navigate to **AppVnet → Peerings** and verify the reverse peering also shows **Connected**.
+
+### Verify connectivity with Network Watcher
+
+7. Search for and select **Network Watcher**.
+
+8. In the **Network diagnostic tools** section, select **Connection troubleshoot**.
+
+9. Configure the test:
+
+   | Field | Value |
+   | --- | --- |
+   | Source type | **Virtual machine** |
+   | Virtual machine | **CoreServicesVM** |
+   | Destination type | **Virtual machine** |
+   | Virtual machine | **az104-06-vm0** |
+   | Protocol | **TCP** |
+   | Destination port | `80` |
+
+10. Select **Check**. Confirm the result shows **Reachable** — traffic from CoreServicesVnet is flowing to AppVnet over the peering.
+
+### Verify cross-VNet private DNS resolution
+
+Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreServicesVnet through the private DNS zone link. This demonstrates that the private DNS zone is working correctly across peered VNets.
+
+11. From your CoreServicesVM Bastion session (or reconnect if needed), open **Remote Desktop Connection** to connect to vm0.
+
+12. In **Computer**, enter vm0's private IP address (e.g., `10.60.1.4` — use the IP from Task 5, step 12).
+
+13. When prompted, enter:
+    - **Username:** `azureuser`
+    - **Password:** the password you set when creating vm0
+
+14. Once connected to vm0, open **PowerShell**.
+
+15. Test DNS resolution from AppVnet to CoreServicesVnet:
+
+    ```powershell
+    nslookup coreservicesvm.private.adventuretravel.com
+    ```
+
+16. Confirm it resolves to CoreServicesVM's private IP address (should be 10.20.10.x).
+
+    > **What this proves:** This confirms three things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses.
+
+17. From the same PowerShell window on vm0, test connectivity to CoreServicesVM:
+
+    ```powershell
+    Test-NetConnection -ComputerName 10.60.1.4 -Port 80
+    ```
+
+    Replace `10.60.1.4` with vm0's actual private IP address (this tests connectivity back to the AppVnet from CoreServicesVM).
+
+18. Disconnect from vm0 and return to the CoreServicesVM session.
+
+**Key point:** Virtual network peering is non-transitive by default. If VNet A peers with VNet B, and VNet B peers with VNet C, VNet A cannot reach VNet C through VNet B. To achieve transitive routing, use either a Network Virtual Appliance or Azure Virtual WAN.
+
+---
+
+## Task 8: Configure Blob Storage with Lifecycle Management
 
 In this task you create a blob container, upload files, and configure a lifecycle management policy to automatically move blobs between access tiers as they age. This reduces storage costs without application code changes.
 
@@ -811,7 +901,7 @@ In this task you create a blob container, upload files, and configure a lifecycl
 
 2. In the left menu under **Data storage**, select **Containers**.
 
-3. Select **+ Container** and configure:
+3. Select **+ Add container** and configure:
 
    | Setting | Value |
    | --- | --- |
@@ -881,15 +971,15 @@ In this task you create a blob container, upload files, and configure a lifecycl
 
 ---
 
-## Task 8: Create Azure Files and Mount on Both VMs
+## Task 9: Create Azure Files and Mount on Both VMs
 
 Azure Files provides fully managed SMB file shares hosted inside a standard Azure Storage account. Unlike Blob Storage, which exposes objects via HTTP/HTTPS, Azure Files exposes a true file system hierarchy that Windows machines can mount as a network drive (Z:).
 
 ### Create the Azure File Share
 
-1. In the storage account, under **Data storage**, select **File shares**.
+1. In the storage account, under **Data storage**, select **Classic file shares**.
 
-2. Select **+ File share** and configure:
+2. Select **+ Classic file share** and configure:
 
    | Setting | Value |
    | --- | --- |
@@ -990,93 +1080,6 @@ Azure Files provides fully managed SMB file shares hosted inside a standard Azur
 
 ---
 
-## Task 9: Configure Virtual Network Peering
-
-Virtual network peering creates a direct, low-latency connection between two VNets over the Microsoft backbone (not the public internet). In this task you configure bidirectional peering between CoreServicesVnet and AppVnet, allowing CoreServicesVM to reach the backend VMs in AppVnet.
-
-### Configure peering from CoreServicesVnet to AppVnet
-
-1. In the Azure portal, navigate to **CoreServicesVnet**.
-
-2. Under **Settings**, select **Peerings**, then **+ Add**.
-
-3. Fill in both sides of the peering simultaneously:
-
-   | Parameter | Value |
-   | --- | --- |
-   | **This virtual network** | |
-   | Peering link name | `CoreServicesVnet-to-AppVnet` |
-   | Allow 'CoreServicesVnet' to access 'AppVnet' | **Checked** (default) |
-   | Allow 'CoreServicesVnet' to receive forwarded traffic from 'AppVnet' | **Checked** |
-   | **Remote virtual network** | |
-   | Peering link name | `AppVnet-to-CoreServicesVnet` |
-   | Virtual network deployment model | **Resource manager** |
-   | Virtual network | **AppVnet (RG-Lab-Integrated-yourname)** |
-   | Allow 'AppVnet' to access 'CoreServicesVnet' | **Checked** (default) |
-   | Allow 'AppVnet' to receive forwarded traffic from 'CoreServicesVnet' | **Checked** |
-
-4. Select **Add** and wait a few seconds.
-
-5. In the **Peerings** blade of `CoreServicesVnet`, confirm the **Peering status** shows **Connected**. Refresh if needed.
-
-6. Navigate to **AppVnet → Peerings** and verify the reverse peering also shows **Connected**.
-
-### Verify connectivity with Network Watcher
-
-7. Search for and select **Network Watcher**.
-
-8. In the **Network diagnostic tools** section, select **Connection troubleshoot**.
-
-9. Configure the test:
-
-   | Field | Value |
-   | --- | --- |
-   | Source type | **Virtual machine** |
-   | Virtual machine | **CoreServicesVM** |
-   | Destination type | **Virtual machine** |
-   | Virtual machine | **az104-06-vm0** |
-   | Protocol | **TCP** |
-   | Destination port | `80` |
-
-10. Select **Check**. Confirm the result shows **Reachable** — traffic from CoreServicesVnet is flowing to AppVnet over the peering.
-
-### Verify cross-VNet private DNS resolution
-
-Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreServicesVnet through the private DNS zone link. This demonstrates that the private DNS zone is working correctly across peered VNets.
-
-11. From your CoreServicesVM Bastion session (or reconnect if needed), open **Remote Desktop Connection** to connect to vm0.
-
-12. In **Computer**, enter vm0's private IP address (e.g., `10.60.1.4` — use the IP from Task 5, step 12).
-
-13. When prompted, enter:
-    - **Username:** `azureuser`
-    - **Password:** the password you set when creating vm0
-
-14. Once connected to vm0, open **PowerShell**.
-
-15. Test DNS resolution from AppVnet to CoreServicesVnet:
-
-    ```powershell
-    nslookup coreservicesvm.private.adventuretravel.com
-    ```
-
-16. Confirm it resolves to CoreServicesVM's private IP address (should be 10.20.10.x).
-
-    > **What this proves:** This confirms three things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses.
-
-17. From the same PowerShell window on vm0, test connectivity to CoreServicesVM:
-
-    ```powershell
-    Test-NetConnection -ComputerName 10.60.1.4 -Port 80
-    ```
-
-    Replace `10.60.1.4` with vm0's actual private IP address (this tests connectivity back to the AppVnet from CoreServicesVM).
-
-18. Disconnect from vm0 and return to the CoreServicesVM session.
-
-**Key point:** Virtual network peering is non-transitive by default. If VNet A peers with VNet B, and VNet B peers with VNet C, VNet A cannot reach VNet C through VNet B. To achieve transitive routing, use either a Network Virtual Appliance or Azure Virtual WAN.
-
----
 
 ## Task 10: Configure Azure Load Balancer (Layer 4)
 
