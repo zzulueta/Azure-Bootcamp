@@ -749,73 +749,47 @@ Azure Files provides fully managed SMB file shares hosted inside a standard Azur
 
 ### Mount the share on vm0
 
-11. Switch to your CoreServicesVM RDP session (from Task 4).
+11. Switch to your vm0 Bastion session (or reconnect if you closed it). You will run the mount script inside the VM to connect to the Azure File Share.
 
-12. Open **Server Manager** → **Local Server**. Verify **IE Enhanced Security Configuration** is **Off** for Administrators. If not, turn it off to allow browsing to other VMs.
+12. Open **PowerShell** as Administrator. Right-click the Windows PowerShell icon and select **Run as administrator**.
 
-13. Open a browser inside the RDP session.
+13. Paste the mount script you copied earlier and press **Enter**.
 
-14. Navigate to the Azure portal and sign in.
-
-15. Navigate to **Virtual machines** → **az104-06-vm0**.
-
-16. Note the private IP address (e.g., `10.60.1.4`).
-
-17. In the browser address bar, navigate to `http://10.60.1.4` (replace with vm0's actual private IP).
-
-18. If you see "Hello World from az104-06-vm0", IIS is working correctly.
-
-19. Now, to mount the Azure File Share on vm0, you need to RDP into vm0. From the Azure portal (inside the CoreServicesVM RDP session):
-
-    > **Note:** While we could use Azure Bastion to connect directly to vm0 from the portal, connecting from CoreServicesVM via RDP over the private IP demonstrates an important concept: VNet peering allows private traffic to flow between networks. This simulates a real-world scenario where a jump box or bastion host in a management VNet connects to workload VMs in other VNets.
-
-20. Go to **az104-06-vm0** → **Connect** → **Connect**.
-
-21. Since vm0 has no public IP, you will connect via the private IP from CoreServicesVM. Open **Remote Desktop Connection** on CoreServicesVM.
-
-22. In **Computer**, enter vm0's private IP address (e.g., `10.60.1.4`).
-
-23. When prompted, enter:
-    - **Username:** `azureuser`
-    - **Password:** the password you set when creating vm0
-
-24. Once connected to vm0, open **PowerShell** as Administrator.
-
-25. Paste the mount script you copied earlier and press **Enter**.
-
-26. Verify the mount:
+14. Verify the mount:
 
     ```powershell
     Get-PSDrive Z
     ```
 
-27. The output should show drive `Z:` with a `Root` of `\\storageaccountname.file.core.windows.net\erp-share`.
+15. The output should show drive `Z:` with a `Root` of `\\storageaccountname.file.core.windows.net\erp-share`.
 
-28. Open **File Explorer** and confirm drive `Z:` appears under **This PC**. Open it — you should see the `invoices` and `reports` directories.
+16. Open **File Explorer** and confirm drive `Z:` appears under **This PC**. Open it — you should see the `invoices` and `reports` directories.
+
+17. Create a new text file in `Z:\invoices`:
+
+    ```powershell
+    "Test from vm0" | Out-File Z:\invoices\test-from-vm0.txt
+    ```
 
 ### Mount the share on vm1
 
-29. Disconnect from vm0's RDP session (back to CoreServicesVM).
+18. Disconnect from az104-06-vm0's RDP session.
 
-30. Repeat steps 20-28 for **az104-06-vm1** using its private IP address.
+19. Connect to az104-06-vm1 via Bastion using the same steps as before (select vm1, Connect via Bastion, enter credentials).
+
+20. Repeat steps 12-16 for **az104-06-vm1** to mount the same Azure File Share on vm1 as drive `Z:`.
 
 ### Verify shared storage
 
-31. Once connected to vm1 via RDP, open **File Explorer** and navigate to `Z:\invoices`.
-
-32. Create a new text file:
+21. Create a new text file:
 
     ```powershell
     "Test from vm1" | Out-File Z:\invoices\test-from-vm1.txt
     ```
 
-33. Open **File Explorer** on vm1 and confirm the file appears in `Z:\invoices`.
+22. Open **File Explorer** on vm1 and confirm the file appears in `Z:\invoices`. You should also see the `test-from-vm0.txt` file created from vm0. This demonstrates that Azure Files behaves like a real network share with real-time synchronization.
 
-34. Switch back to vm0's RDP session (or reconnect if you disconnected).
-
-35. Open **File Explorer** on vm0 and navigate to `Z:\invoices`.
-
-36. Confirm `test-from-vm1.txt` appears immediately — this demonstrates that Azure Files behaves like a real network share with real-time synchronization.
+23. Go back to the Storage Account in the Azure portal, select the **Storage browser**, navigate to the Classic file shares > `erp-share` file share, and confirm both files appear in the `invoices` directory.
 
 **Key point:** Azure Files provides true SMB 3.0 file shares that multiple VMs can mount simultaneously. Unlike Blob Storage, which requires HTTP clients and has no concept of file locking, Azure Files supports standard Windows file operations, NTFS permissions (when using Active Directory integration), and concurrent access from multiple clients.
 
