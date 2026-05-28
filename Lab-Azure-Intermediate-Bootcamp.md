@@ -458,11 +458,13 @@ In this task you deploy a Windows Server virtual machine using the Azure portal.
 
 **Key point:** CoreServicesVM is now running in the CoreServicesVnet and can be accessed via Bastion securely. Once VNet peering is configured in Task 9, this VM will be reached by the backend VMs in the AppVnet using its private IP address.
 
+13. Close the Bastion session tab when finished.
+
 ---
 
 ## Task 5: Deploy vm0 and vm1 via CLI with IIS
 
-In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. Each VM will have IIS installed automatically via a custom-data PowerShell script, and each will serve different content on `/image` and `/video` paths for the Application Gateway demonstration in Task 11.
+In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. Each VM will have IIS installed, and each will serve different content on `/image` and `/video` paths for the Application Gateway demonstration in Task 11.
 
 ### Create the NSG for backend VMs
 
@@ -599,8 +601,6 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
    PS
    ```
 
-
-
 9. Wait for the deployment to complete.
 
 ### Verify both VMs are running
@@ -624,11 +624,203 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 12. Note the private IP addresses. You will use these later.
 
-**Key point:** The custom-data script runs during VM provisioning and installs IIS with custom HTML pages. This approach demonstrates Infrastructure as Code principles — the VM configuration is defined in the deployment script, not applied manually after deployment.
+**Key point:** Both backend VMs are now deployed in the AppVnet with IIS installed and custom content. They do not have public IP addresses and are protected by the NSG that allows only HTTP traffic. Once VNet peering is configured in Task 6, these VMs will be able to reach CoreServicesVM in the CoreServicesVnet on its private IP address, while remaining isolated from the internet.
+---
+
+## Task 6: Configure Virtual Network Peering
+
+Virtual network peering creates a direct, low-latency connection between two VNets over the Microsoft backbone (not the public internet). In this task you configure bidirectional peering between CoreServicesVnet and AppVnet, allowing CoreServicesVM to reach the backend VMs in AppVnet.
+
+### Configure peering from CoreServicesVnet to AppVnet
+
+1. In the Azure portal, navigate to **CoreServicesVnet**.
+
+2. Under **Settings**, select **Peerings**, then **+ Add**.
+
+3. Fill in both sides of the peering simultaneously:
+
+   | Parameter | Value |
+   | --- | --- |
+   | **Remote virtual network summary** | |
+   | Peering link name | `AppVnet-to-CoreServicesVnet` |
+   | Virtual network | `AppVnet` |
+   | Allow 'AppVnet' to access 'CoreServicesVnet' | **Checked** (default) |
+   | Allow 'AppVnet' to receive forwarded traffic from 'CoreServicesVnet' | **Checked** |
+   | **Local virtual network summary** | |
+   | Peering link name | `CoreServicesVnet-to-AppVnet` |
+   | Allow 'CoreServicesVnet' to access 'AppVnet' | **Checked** (default) |
+   | Allow 'CoreServicesVnet' to receive forwarded traffic from 'AppVnet' | **Checked** |
+
+4. Select **Add** and wait a few seconds.
+
+5. In the **Peerings** blade of `CoreServicesVnet`, confirm the **Peering status** shows **Connected**. Refresh if needed.
+
+6. Navigate to **AppVnet → Peerings** and verify the reverse peering also shows **Connected**.
+
+### Verify connectivity with Network Watcher
+
+7. Search for and select **Network Watcher**.
+
+8. In the **Network diagnostic tools** section, select **Connection troubleshoot**.
+
+9. Configure the test:
+
+   | Field | Value |
+   | --- | --- |
+   | Source type | **Virtual machine** |
+   | Virtual machine | **CoreServicesVM** |
+   | Destination type | **Virtual machine** |
+   | Virtual machine | **az104-06-vm0** |
+   | Protocol | **TCP** |
+   | Destination port | `80` |
+
+10. Select **Check**. Confirm the result shows **Reachable** — traffic from CoreServicesVnet is flowing to AppVnet over the peering.
+
+### Verify cross-VNet private DNS resolution
+
+Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreServicesVnet through the private DNS zone link. This demonstrates that the private DNS zone is working correctly across peered VNets.
+
+11. In the portal, go to the `az104-06-vm0` virtual machine.
+
+12. Select **Connect via Bastion** from the top toolbar in the Overview blade.
+
+13. Enter your credentials:
+
+    | Setting | Value |
+    | --- | --- |
+    | Username | `azureuser` |
+    | Password | The password you set when creating vm0 |
+
+    Click **Connect** to open the Bastion session in a new browser tab.
+
+14. Once connected to vm0, open **Windows PowerShell**.
+
+15. Test DNS resolution from AppVnet to CoreServicesVnet:
+
+    ```powershell
+    nslookup coreservicesvm.private.adventuretravel.com
+    ```
+
+16. Confirm it resolves to CoreServicesVM's private IP address (should be 10.20.10.4).
+
+    > **What this proves:** This confirms four things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses, and (4) Bastion provides seamless access to VMs in peered VNets without needing public IPs or exposed RDP ports.
+
+17. Keep the Bastion session open for now — you will use it again in Task 7.
+
+**Key point:** Virtual network peering is non-transitive by default. If VNet A peers with VNet B, and VNet B peers with VNet C, VNet A cannot reach VNet C through VNet B. To achieve transitive routing, use either a Network Virtual Appliance or Azure Virtual WAN.
 
 ---
 
-## Task 6: Deploy Storage Account Using ARM and Bicep Templates
+## Task 7: Create Azure Files and Mount on Both VMs
+
+Azure Files provides fully managed SMB file shares hosted inside a standard Azure Storage account. Unlike Blob Storage, which exposes objects via HTTP/HTTPS, Azure Files exposes a true file system hierarchy that Windows machines can mount as a network drive (Z:).
+
+### Create the Azure File Share
+
+1. In the storage account, under **Data storage**, select **Classic file shares**.
+
+2. Select **+ Classic file share** and configure:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | `erp-share` |
+   | Tier | **Transaction optimized** |
+
+3. Select **Review + Create**, then **Create**.
+
+4. Open the `erp-share` file share.
+
+5. Select **+ Add directory** and create two folders:
+   - `invoices`
+   - `reports`
+
+6. Under **Browse**, select the `invoices` directory, then **Upload** and upload any small file from your local machine as a test fixture.
+
+### Retrieve the mount script for vm0
+
+7. Navigate back to the `erp-share` overview page.
+
+8. Select **Connect** from the top toolbar.
+
+9. Select **Windows**, then **Show script**.
+
+10. Copy the entire PowerShell script to your clipboard.
+
+### Mount the share on vm0
+
+11. Switch to your CoreServicesVM RDP session (from Task 4).
+
+12. Open **Server Manager** → **Local Server**. Verify **IE Enhanced Security Configuration** is **Off** for Administrators. If not, turn it off to allow browsing to other VMs.
+
+13. Open a browser inside the RDP session.
+
+14. Navigate to the Azure portal and sign in.
+
+15. Navigate to **Virtual machines** → **az104-06-vm0**.
+
+16. Note the private IP address (e.g., `10.60.1.4`).
+
+17. In the browser address bar, navigate to `http://10.60.1.4` (replace with vm0's actual private IP).
+
+18. If you see "Hello World from az104-06-vm0", IIS is working correctly.
+
+19. Now, to mount the Azure File Share on vm0, you need to RDP into vm0. From the Azure portal (inside the CoreServicesVM RDP session):
+
+    > **Note:** While we could use Azure Bastion to connect directly to vm0 from the portal, connecting from CoreServicesVM via RDP over the private IP demonstrates an important concept: VNet peering allows private traffic to flow between networks. This simulates a real-world scenario where a jump box or bastion host in a management VNet connects to workload VMs in other VNets.
+
+20. Go to **az104-06-vm0** → **Connect** → **Connect**.
+
+21. Since vm0 has no public IP, you will connect via the private IP from CoreServicesVM. Open **Remote Desktop Connection** on CoreServicesVM.
+
+22. In **Computer**, enter vm0's private IP address (e.g., `10.60.1.4`).
+
+23. When prompted, enter:
+    - **Username:** `azureuser`
+    - **Password:** the password you set when creating vm0
+
+24. Once connected to vm0, open **PowerShell** as Administrator.
+
+25. Paste the mount script you copied earlier and press **Enter**.
+
+26. Verify the mount:
+
+    ```powershell
+    Get-PSDrive Z
+    ```
+
+27. The output should show drive `Z:` with a `Root` of `\\storageaccountname.file.core.windows.net\erp-share`.
+
+28. Open **File Explorer** and confirm drive `Z:` appears under **This PC**. Open it — you should see the `invoices` and `reports` directories.
+
+### Mount the share on vm1
+
+29. Disconnect from vm0's RDP session (back to CoreServicesVM).
+
+30. Repeat steps 20-28 for **az104-06-vm1** using its private IP address.
+
+### Verify shared storage
+
+31. Once connected to vm1 via RDP, open **File Explorer** and navigate to `Z:\invoices`.
+
+32. Create a new text file:
+
+    ```powershell
+    "Test from vm1" | Out-File Z:\invoices\test-from-vm1.txt
+    ```
+
+33. Open **File Explorer** on vm1 and confirm the file appears in `Z:\invoices`.
+
+34. Switch back to vm0's RDP session (or reconnect if you disconnected).
+
+35. Open **File Explorer** on vm0 and navigate to `Z:\invoices`.
+
+36. Confirm `test-from-vm1.txt` appears immediately — this demonstrates that Azure Files behaves like a real network share with real-time synchronization.
+
+**Key point:** Azure Files provides true SMB 3.0 file shares that multiple VMs can mount simultaneously. Unlike Blob Storage, which requires HTTP clients and has no concept of file locking, Azure Files supports standard Windows file operations, NTFS permissions (when using Active Directory integration), and concurrent access from multiple clients.
+
+---
+
+## Task 8: Deploy Storage Account Using ARM and Bicep Templates
 
 In this task you deploy a storage account using an ARM template that demonstrates all five template sections: parameters, variables, functions, resources, and outputs. You will then convert the ARM template to Bicep, deploy it, and compare the two approaches. This demonstrates Infrastructure as Code best practices for repeatable, version-controlled deployments.
 
@@ -831,91 +1023,7 @@ In our lab scenario, the Storage Account can be used to store product images and
 
 ---
 
-## Task 7: Configure Virtual Network Peering
-
-Virtual network peering creates a direct, low-latency connection between two VNets over the Microsoft backbone (not the public internet). In this task you configure bidirectional peering between CoreServicesVnet and AppVnet, allowing CoreServicesVM to reach the backend VMs in AppVnet.
-
-### Configure peering from CoreServicesVnet to AppVnet
-
-1. In the Azure portal, navigate to **CoreServicesVnet**.
-
-2. Under **Settings**, select **Peerings**, then **+ Add**.
-
-3. Fill in both sides of the peering simultaneously:
-
-   | Parameter | Value |
-   | --- | --- |
-   | **Remote virtual network summary** | |
-   | Peering link name | `AppVnet-to-CoreServicesVnet` |
-   | Virtual network | `AppVnet` |
-   | Allow 'AppVnet' to access 'CoreServicesVnet' | **Checked** (default) |
-   | Allow 'AppVnet' to receive forwarded traffic from 'CoreServicesVnet' | **Checked** |
-   | **Local virtual network summary** | |
-   | Peering link name | `CoreServicesVnet-to-AppVnet` |
-   | Allow 'CoreServicesVnet' to access 'AppVnet' | **Checked** (default) |
-   | Allow 'CoreServicesVnet' to receive forwarded traffic from 'AppVnet' | **Checked** |
-
-4. Select **Add** and wait a few seconds.
-
-5. In the **Peerings** blade of `CoreServicesVnet`, confirm the **Peering status** shows **Connected**. Refresh if needed.
-
-6. Navigate to **AppVnet → Peerings** and verify the reverse peering also shows **Connected**.
-
-### Verify connectivity with Network Watcher
-
-7. Search for and select **Network Watcher**.
-
-8. In the **Network diagnostic tools** section, select **Connection troubleshoot**.
-
-9. Configure the test:
-
-   | Field | Value |
-   | --- | --- |
-   | Source type | **Virtual machine** |
-   | Virtual machine | **CoreServicesVM** |
-   | Destination type | **Virtual machine** |
-   | Virtual machine | **az104-06-vm0** |
-   | Protocol | **TCP** |
-   | Destination port | `80` |
-
-10. Select **Check**. Confirm the result shows **Reachable** — traffic from CoreServicesVnet is flowing to AppVnet over the peering.
-
-### Verify cross-VNet private DNS resolution
-
-Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreServicesVnet through the private DNS zone link. This demonstrates that the private DNS zone is working correctly across peered VNets.
-
-11. In the portal, go to the `az104-06-vm0` virtual machine.
-
-12. Select **Connect via Bastion** from the top toolbar in the Overview blade.
-
-13. Enter your credentials:
-
-    | Setting | Value |
-    | --- | --- |
-    | Username | `azureuser` |
-    | Password | The password you set when creating vm0 |
-
-    Click **Connect** to open the Bastion session in a new browser tab.
-
-14. Once connected to vm0, open **Windows PowerShell**.
-
-15. Test DNS resolution from AppVnet to CoreServicesVnet:
-
-    ```powershell
-    nslookup coreservicesvm.private.adventuretravel.com
-    ```
-
-16. Confirm it resolves to CoreServicesVM's private IP address (should be 10.20.10.4).
-
-    > **What this proves:** This confirms four things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses, and (4) Bastion provides seamless access to VMs in peered VNets without needing public IPs or exposed RDP ports.
-
-17. Disconnect from vm0 and return to the CoreServicesVM session.
-
-**Key point:** Virtual network peering is non-transitive by default. If VNet A peers with VNet B, and VNet B peers with VNet C, VNet A cannot reach VNet C through VNet B. To achieve transitive routing, use either a Network Virtual Appliance or Azure Virtual WAN.
-
----
-
-## Task 8: Configure Blob Storage with Lifecycle Management
+## Task 9: Configure Blob Storage with Lifecycle Management
 
 In this task you create a blob container, upload files, and configure a lifecycle management policy to automatically move blobs between access tiers as they age. This reduces storage costs without application code changes.
 
@@ -994,116 +1102,6 @@ In this task you create a blob container, upload files, and configure a lifecycl
 **Why this matters:** Product images uploaded more than 30 days ago are unlikely to be accessed frequently. Automatically moving them to Cool and eventually Archive reduces storage cost without any application code changes. Lifecycle policies are evaluated once per day.
 
 ---
-
-## Task 9: Create Azure Files and Mount on Both VMs
-
-Azure Files provides fully managed SMB file shares hosted inside a standard Azure Storage account. Unlike Blob Storage, which exposes objects via HTTP/HTTPS, Azure Files exposes a true file system hierarchy that Windows machines can mount as a network drive (Z:).
-
-### Create the Azure File Share
-
-1. In the storage account, under **Data storage**, select **Classic file shares**.
-
-2. Select **+ Classic file share** and configure:
-
-   | Setting | Value |
-   | --- | --- |
-   | Name | `erp-share` |
-   | Tier | **Transaction optimized** |
-
-3. Select **Review + Create**, then **Create**.
-
-4. Open the `erp-share` file share.
-
-5. Select **+ Add directory** and create two folders:
-   - `invoices`
-   - `reports`
-
-6. Under **Browse**, select the `invoices` directory, then **Upload** and upload any small file from your local machine as a test fixture.
-
-### Retrieve the mount script for vm0
-
-7. Navigate back to the `erp-share` overview page.
-
-8. Select **Connect** from the top toolbar.
-
-9. Select **Windows**, then **Show script**.
-
-10. Copy the entire PowerShell script to your clipboard.
-
-### Mount the share on vm0
-
-11. Switch to your CoreServicesVM RDP session (from Task 4).
-
-12. Open **Server Manager** → **Local Server**. Verify **IE Enhanced Security Configuration** is **Off** for Administrators. If not, turn it off to allow browsing to other VMs.
-
-13. Open a browser inside the RDP session.
-
-14. Navigate to the Azure portal and sign in.
-
-15. Navigate to **Virtual machines** → **az104-06-vm0**.
-
-16. Note the private IP address (e.g., `10.60.1.4`).
-
-17. In the browser address bar, navigate to `http://10.60.1.4` (replace with vm0's actual private IP).
-
-18. If you see "Hello World from az104-06-vm0", IIS is working correctly.
-
-19. Now, to mount the Azure File Share on vm0, you need to RDP into vm0. From the Azure portal (inside the CoreServicesVM RDP session):
-
-    > **Note:** While we could use Azure Bastion to connect directly to vm0 from the portal, connecting from CoreServicesVM via RDP over the private IP demonstrates an important concept: VNet peering allows private traffic to flow between networks. This simulates a real-world scenario where a jump box or bastion host in a management VNet connects to workload VMs in other VNets.
-
-20. Go to **az104-06-vm0** → **Connect** → **Connect**.
-
-21. Since vm0 has no public IP, you will connect via the private IP from CoreServicesVM. Open **Remote Desktop Connection** on CoreServicesVM.
-
-22. In **Computer**, enter vm0's private IP address (e.g., `10.60.1.4`).
-
-23. When prompted, enter:
-    - **Username:** `azureuser`
-    - **Password:** the password you set when creating vm0
-
-24. Once connected to vm0, open **PowerShell** as Administrator.
-
-25. Paste the mount script you copied earlier and press **Enter**.
-
-26. Verify the mount:
-
-    ```powershell
-    Get-PSDrive Z
-    ```
-
-27. The output should show drive `Z:` with a `Root` of `\\storageaccountname.file.core.windows.net\erp-share`.
-
-28. Open **File Explorer** and confirm drive `Z:` appears under **This PC**. Open it — you should see the `invoices` and `reports` directories.
-
-### Mount the share on vm1
-
-29. Disconnect from vm0's RDP session (back to CoreServicesVM).
-
-30. Repeat steps 20-28 for **az104-06-vm1** using its private IP address.
-
-### Verify shared storage
-
-31. Once connected to vm1 via RDP, open **File Explorer** and navigate to `Z:\invoices`.
-
-32. Create a new text file:
-
-    ```powershell
-    "Test from vm1" | Out-File Z:\invoices\test-from-vm1.txt
-    ```
-
-33. Open **File Explorer** on vm1 and confirm the file appears in `Z:\invoices`.
-
-34. Switch back to vm0's RDP session (or reconnect if you disconnected).
-
-35. Open **File Explorer** on vm0 and navigate to `Z:\invoices`.
-
-36. Confirm `test-from-vm1.txt` appears immediately — this demonstrates that Azure Files behaves like a real network share with real-time synchronization.
-
-**Key point:** Azure Files provides true SMB 3.0 file shares that multiple VMs can mount simultaneously. Unlike Blob Storage, which requires HTTP clients and has no concept of file locking, Azure Files supports standard Windows file operations, NTFS permissions (when using Active Directory integration), and concurrent access from multiple clients.
-
----
-
 
 ## Task 10: Configure Azure Load Balancer (Layer 4)
 
