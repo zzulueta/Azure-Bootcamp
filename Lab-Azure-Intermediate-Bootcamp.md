@@ -579,6 +579,8 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 10. List all VMs and their power states:
 
+    > **Important:** Ensure you modify the Resource Group to match the one you created in Task 1.
+
     ```bash
     az vm list \
       --resource-group RG-Lab-Integrated-yourname \
@@ -592,7 +594,7 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
     - az104-06-vm0
     - az104-06-vm1
 
-12. Note the private IP addresses for vm0 and vm1 — you will use these later to verify IIS is running.
+12. Note the private IP addresses. You will use these later.
 
 **Key point:** The custom-data script runs during VM provisioning and installs IIS with custom HTML pages. This approach demonstrates Infrastructure as Code principles — the VM configuration is defined in the deployment script, not applied manually after deployment.
 
@@ -717,6 +719,8 @@ In this task you deploy a storage account using an ARM template that demonstrate
 
 4. Before deploying, preview the changes:
 
+    > **Important:** Ensure you modify the Resource Group to match the one you created in Task 1.
+
    ```bash
    az deployment group what-if \
      --resource-group RG-Lab-Integrated-yourname \
@@ -729,6 +733,8 @@ In this task you deploy a storage account using an ARM template that demonstrate
 ### Deploy the ARM template
 
 6. Deploy the template:
+
+    > **Important:** Ensure you modify the Resource Group to match the one you created in Task 1.
 
    ```bash
    az deployment group create \
@@ -769,6 +775,8 @@ In this task you deploy a storage account using an ARM template that demonstrate
 
 13. Modify the storage account name to avoid conflict:
 
+    > **Important:** Ensure you modify the Resource Group to match the one you created in Task 1.
+
     ```bash
     az deployment group create \
       --resource-group RG-Lab-Integrated-yourname \
@@ -780,6 +788,8 @@ In this task you deploy a storage account using an ARM template that demonstrate
 
 15. List storage accounts to confirm both deployments exist:
 
+    > **Important:** Ensure you modify the Resource Group to match the one you created in Task 1.
+    
     ```bash
     az storage account list \
       --resource-group RG-Lab-Integrated-yourname \
