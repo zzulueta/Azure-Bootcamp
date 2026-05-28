@@ -884,15 +884,20 @@ Virtual network peering creates a direct, low-latency connection between two VNe
 
 Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreServicesVnet through the private DNS zone link. This demonstrates that the private DNS zone is working correctly across peered VNets.
 
-11. From your CoreServicesVM Bastion session (or reconnect if needed), open **Remote Desktop Connection** to connect to vm0.
+11. In the portal, go to the `az104-06-vm0` virtual machine.
 
-12. In **Computer**, enter vm0's private IP address (e.g., `10.60.1.4` — use the IP from Task 5, step 12).
+12. Select **Connect via Bastion** from the top toolbar in the Overview blade.
 
-13. When prompted, enter:
-    - **Username:** `azureuser`
-    - **Password:** the password you set when creating vm0
+13. Enter your credentials:
 
-14. Once connected to vm0, open **PowerShell**.
+    | Setting | Value |
+    | --- | --- |
+    | Username | `azureuser` |
+    | Password | The password you set when creating vm0 |
+
+    Click **Connect** to open the Bastion session in a new browser tab.
+
+14. Once connected to vm0, open **Windows PowerShell**.
 
 15. Test DNS resolution from AppVnet to CoreServicesVnet:
 
@@ -900,19 +905,11 @@ Now verify that VMs in AppVnet can resolve DNS records auto-registered in CoreSe
     nslookup coreservicesvm.private.adventuretravel.com
     ```
 
-16. Confirm it resolves to CoreServicesVM's private IP address (should be 10.20.10.x).
+16. Confirm it resolves to CoreServicesVM's private IP address (should be 10.20.10.4).
 
-    > **What this proves:** This confirms three things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses.
+    > **What this proves:** This confirms four things: (1) The AppVnet VNet link allows DNS resolution from the private DNS zone, (2) CoreServicesVM was auto-registered when it started, (3) DNS queries work across peered VNets. VMs in AppVnet can now discover and connect to services in CoreServicesVnet using friendly DNS names instead of memorizing IP addresses, and (4) Bastion provides seamless access to VMs in peered VNets without needing public IPs or exposed RDP ports.
 
-17. From the same PowerShell window on vm0, test connectivity to CoreServicesVM:
-
-    ```powershell
-    Test-NetConnection -ComputerName 10.60.1.4 -Port 80
-    ```
-
-    Replace `10.60.1.4` with vm0's actual private IP address (this tests connectivity back to the AppVnet from CoreServicesVM).
-
-18. Disconnect from vm0 and return to the CoreServicesVM session.
+17. Disconnect from vm0 and return to the CoreServicesVM session.
 
 **Key point:** Virtual network peering is non-transitive by default. If VNet A peers with VNet B, and VNet B peers with VNet C, VNet A cannot reach VNet C through VNet B. To achieve transitive routing, use either a Network Virtual Appliance or Azure Virtual WAN.
 
