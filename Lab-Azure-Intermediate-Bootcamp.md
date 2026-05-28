@@ -787,7 +787,7 @@ Azure Files provides fully managed SMB file shares hosted inside a standard Azur
     "Test from vm1" | Out-File Z:\invoices\test-from-vm1.txt
     ```
 
-22. Open **File Explorer** on vm1 and confirm the file appears in `Z:\invoices`. You should also see the `test-from-vm0.txt` file created from vm0. This demonstrates that Azure Files behaves like a real network share with real-time synchronization.
+22. Open **File Explorer** on az104-06-vm1 and confirm the file appears in `Z:\invoices`. You should also see the `test-from-vm0.txt` file created from az104-06-vm0. This demonstrates that Azure Files behaves like a real network share with real-time synchronization.
 
 23. Go back to the Storage Account in the Azure portal, select the **Storage browser**, navigate to the Classic file shares > `erp-share` file share, and confirm both files appear in the `invoices` directory.
 
@@ -1084,7 +1084,7 @@ Azure Load Balancer operates at Layer 4 (TCP/UDP) and distributes inbound traffi
 
 ### Create the Load Balancer
 
-1. Search for and select **Load balancers**, then **+ Create**.
+1. Search for and select **Load balancers**, then **+ Create > Standard Load balancer**.
 
 2. On the **Basics** tab:
 
@@ -1114,7 +1114,7 @@ Azure Load Balancer operates at Layer 4 (TCP/UDP) and distributes inbound traffi
    | Assignment | **Static** |
    | Availability zone | **Zone-redundant** |
 
-5. Select **OK**, then **Add**.
+5. Select **Save**, then **Save**.
 
 6. Select **Next: Backend pools**, then **+ Add a backend pool**:
 
@@ -1123,7 +1123,6 @@ Azure Load Balancer operates at Layer 4 (TCP/UDP) and distributes inbound traffi
    | Name | `az104-be` |
    | Virtual network | **AppVnet (RG-Lab-Integrated-yourname)** |
    | Backend Pool Configuration | **NIC** |
-   | IP Version | **IPv4** |
 
 7. Under **Virtual machines**, select **+ Add**:
 
@@ -1200,8 +1199,8 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
    | Region | **Australia East** |
    | Tier | **Standard V2** |
    | Enable autoscaling | **No** |
-   | Instance count | `2` |
-   | Availability zone | **None** |
+   | Minimum instance count | `2` |
+   | Maximum instance count | `10` |
    | HTTP2 | **Disabled** |
    | Virtual network | **AppVnet** |
    | Subnet | **AppGwSubnet (10.60.3.224/27)** |
@@ -1224,49 +1223,19 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
    | Name | `az104-appgwbe` |
    | Add backend pool without targets | **No** |
    | Target type | **Virtual machine** |
-   | Target | **az104-06-vm0 (NIC)** |
+   | Target | **az104-06-vm0VMNic** |
+   | Target | **az104-06-vm1VMNic** |
 
-6. Select **Add** to add vm0, then select **+ Add target** and add:
+6. Select **Add** to save the backend pool.
 
-   | Setting | Value |
-   | --- | --- |
-   | Target type | **Virtual machine** |
-   | Target | **az104-06-vm1 (NIC)** |
-
-7. Select **Add** to save the backend pool.
-
-8. Select **+ Add a backend pool** again:
-
-   **Images pool (vm0 only):**
-
-   | Setting | Value |
-   | --- | --- |
-   | Name | `az104-imagebe` |
-   | Target type | **Virtual machine** |
-   | Target | **az104-06-vm0 (NIC)** |
-
-9. Select **Add**.
-
-10. Select **+ Add a backend pool** again:
-
-    **Videos pool (vm1 only):**
-
-    | Setting | Value |
-    | --- | --- |
-    | Name | `az104-videobe` |
-    | Target type | **Virtual machine** |
-    | Target | **az104-06-vm1 (NIC)** |
-
-11. Select **Add**.
-
-12. Select **Next: Configuration**, then **+ Add a routing rule**:
+7. Select **Next: Configuration**, then **+ Add a routing rule**:
 
     | Setting | Value |
     | --- | --- |
     | Rule name | `az104-gwrule` |
     | Priority | `10` |
 
-13. On the **Listener** tab:
+8. On the **Listener** tab:
 
     | Setting | Value |
     | --- | --- |
@@ -1275,9 +1244,8 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Protocol | **HTTP** |
     | Port | `80` |
     | Listener type | **Basic** |
-    | Error page url | **No** |
 
-14. On the **Backend targets** tab:
+9. On the **Backend targets** tab:
 
     | Setting | Value |
     | --- | --- |
@@ -1285,7 +1253,7 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend target | `az104-appgwbe` |
     | Backend settings | **Add new** |
 
-15. In the **Add Backend setting** dialog:
+10. In the **Add Backend setting** dialog:
 
     | Setting | Value |
     | --- | --- |
@@ -1296,11 +1264,11 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Connection draining | **Disable** |
     | Request time-out (seconds) | `20` |
 
-16. Select **Add** to save the backend setting.
+11. Select **Add** to save the backend setting.
 
-17. Back on the **Backend targets** tab, select **Add multiple targets to create a path-based rule**.
+12. Back on the **Backend targets** tab, select **Add multiple targets to create a path-based rule**.
 
-18. Add the first path rule:
+13. Add the first path rule:
 
     **Image routing rule:**
 
@@ -1311,9 +1279,9 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend settings | **az104-http** |
     | Backend target | `az104-imagebe` |
 
-19. Select **Add**.
+14. Select **Add**.
 
-20. Add the second path rule:
+15. Add the second path rule:
 
     **Video routing rule:**
 
@@ -1324,27 +1292,27 @@ Azure Application Gateway is a Layer 7 (HTTP/HTTPS) load balancer. Unlike the st
     | Backend settings | **az104-http** |
     | Backend target | `az104-videobe` |
 
-21. Select **Add**.
+16. Select **Add**.
 
-22. Select **Add** to save the routing rule.
+17. Select **Add** to save the routing rule.
 
-23. Select **Next: Tags**, then **Next: Review + create**, then **Create**.
+18. Select **Next: Tags**, then **Next: Review + create**, then **Create**.
 
     > **Note:** The Application Gateway takes 5–10 minutes to deploy. Continue to Task 12 while it deploys.
 
 ### Test path-based routing
 
-24. Once deployed, navigate to **az104-appgw → Overview** and copy the **Frontend public IP address**.
+19. Once deployed, navigate to **az104-appgw → Overview** and copy the **Frontend public IP address**.
 
-25. Open a browser and navigate to `http://<frontend-ip>/image/`.
+20. Open a browser and navigate to `http://<frontend-ip>/image/`.
 
-26. Confirm you see "Image server - vm0" — the Application Gateway routed the request to vm0 based on the `/image/*` path.
+21. Confirm you see "Image server - vm0" — the Application Gateway routed the request to vm0 based on the `/image/*` path.
 
-27. Open a new browser tab and navigate to `http://<frontend-ip>/video/`.
+22. Open a new browser tab and navigate to `http://<frontend-ip>/video/`.
 
-28. Confirm you see "Video server - vm1" — the request was routed to vm1 based on the `/video/*` path.
+23. Confirm you see "Video server - vm1" — the request was routed to vm1 based on the `/video/*` path.
 
-29. Navigate to `http://<frontend-ip>/` (no path). Confirm the default pool responds — either vm0 or vm1.
+24. Navigate to `http://<frontend-ip>/` (no path). Confirm the default pool responds — either vm0 or vm1.
 
 **What just happened:** The Application Gateway inspected the URL path of each request and forwarded it to the appropriate backend pool. This is Layer 7 routing: the gateway understands HTTP, not just TCP ports.
 
