@@ -817,16 +817,15 @@ Virtual network peering creates a direct, low-latency connection between two VNe
 
    | Parameter | Value |
    | --- | --- |
-   | **This virtual network** | |
+   | **Remote virtual network summary** | |
+   | Peering link name | `AppVnet-to-CoreServicesVnet` |
+   | Virtual network | `AppVnet` |
+   | Allow 'AppVnet' to access 'CoreServicesVnet' | **Checked** (default) |
+   | Allow 'AppVnet' to receive forwarded traffic from 'CoreServicesVnet' | **Checked** |
+   | **Local virtual network summary** | |
    | Peering link name | `CoreServicesVnet-to-AppVnet` |
    | Allow 'CoreServicesVnet' to access 'AppVnet' | **Checked** (default) |
    | Allow 'CoreServicesVnet' to receive forwarded traffic from 'AppVnet' | **Checked** |
-   | **Remote virtual network** | |
-   | Peering link name | `AppVnet-to-CoreServicesVnet` |
-   | Virtual network deployment model | **Resource manager** |
-   | Virtual network | **AppVnet (RG-Lab-Integrated-yourname)** |
-   | Allow 'AppVnet' to access 'CoreServicesVnet' | **Checked** (default) |
-   | Allow 'AppVnet' to receive forwarded traffic from 'CoreServicesVnet' | **Checked** |
 
 4. Select **Add** and wait a few seconds.
 
