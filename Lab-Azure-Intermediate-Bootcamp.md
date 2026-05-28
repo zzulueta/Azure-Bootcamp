@@ -507,37 +507,50 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
    
 ### Deploy vm0 in BackendSubnet1
 
-6. Create vm0 with IIS installed via custom-data:
+6. Create vm0:
 
-   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity.
+   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
    > Ensure you modify the Resource Group to match the one you created in Task 1.
 
    ```bash
    az vm create \
-     --resource-group RG-Lab-Integrated-yourname \
-     --name az104-06-vm0 \
-     --image Win2022Datacenter \
-     --vnet-name AppVnet \
-     --subnet BackendSubnet1 \
-     --nsg app-nsg \
-     --public-ip-address "" \
-     --admin-username azureuser \
-     --admin-password <password> \
-     --size Standard_B2s \
-     --custom-data @- <<'EOF'
-   #ps1_sysnative
-   Install-WindowsFeature -name Web-Server -IncludeManagementTools
-   Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
-   Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm0</h1>"
-   New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
-   Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm0</h1>"
-   New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
-   Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm0</h1>"
-   EOF
+  --resource-group RG-Lab-Integrated-yourname \
+  --name az104-06-vm0 \
+  --image Win2022Datacenter \
+  --vnet-name AppVnet \
+  --subnet BackendSubnet1 \
+  --nsg app-nsg \
+  --public-ip-address "" \
+  --admin-username azureuser \
+  --admin-password 'P@ssw0rd1234!ChangeMe' \
+  --size Standard_B2s
    ```
    
+   Install IIS and create custom pages:
+
+   ```bash
+   az vm run-command invoke \
+   --resource-group RG-Lab-Integrated-yourname \
+   --name az104-06-vm0 \
+   --command-id RunPowerShellScript \
+   --scripts @- <<'PS'
+   Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+
+   Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
+   Set-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm0</h1>"
+
+   New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
+   Set-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm0</h1>"
+
+   New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
+   Set-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm0</h1>"
+
+   # Ensure HTTP allowed in Windows firewall
+   netsh advfirewall firewall add rule name="Allow HTTP 80" dir=in action=allow protocol=TCP localport=80
+   PS
+   ```
    > This script installs IIS, removes the default page, and creates custom pages for the root, `/image`, and `/video` paths.
-   > **Note:** The `--no-wait` flag is omitted to allow you to see any errors immediately. In production scripts, use `--no-wait` and deploy VMs in parallel.
+   
 
 7. Wait for the deployment to complete (approximately 3–5 minutes).
 
@@ -545,33 +558,48 @@ In this task you deploy two Windows Server VMs in the AppVnet using Azure CLI. E
 
 8. Create vm1 with IIS installed via custom-data:
 
-   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity.
+   > **Important:** Replace `<password>` with a strong password of your choice. Use the same password for both VMs for simplicity. Make sure you keep the quotes around the password.
    > Ensure you modify the Resource Group to match the one you created in Task 1.
-
 
    ```bash
    az vm create \
-     --resource-group RG-Lab-Integrated-yourname \
-     --name az104-06-vm1 \
-     --image Win2022Datacenter \
-     --vnet-name AppVnet \
-     --subnet BackendSubnet2 \
-     --nsg app-nsg \
-     --public-ip-address "" \
-     --admin-username azureuser \
-     --admin-password <password> \
-     --size Standard_B2s \
-     --custom-data @- <<'EOF'
-   #ps1_sysnative
-   Install-WindowsFeature -name Web-Server -IncludeManagementTools
-   Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
-   Add-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm1</h1>"
-   New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
-   Add-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm1</h1>"
-   New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
-   Add-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm1</h1>"
-   EOF
+  --resource-group RG-Lab-Integrated-yourname \
+  --name az104-06-vm1 \
+  --image Win2022Datacenter \
+  --vnet-name AppVnet \
+  --subnet BackendSubnet2 \
+  --nsg app-nsg \
+  --public-ip-address "" \
+  --admin-username azureuser \
+  --admin-password 'P@ssw0rd1234!ChangeMe' \
+  --size Standard_B2s
    ```
+   
+   Install IIS and create custom pages:
+
+   ```bash
+   az vm run-command invoke \
+   --resource-group RG-Lab-Integrated-yourname \
+   --name az104-06-vm1 \
+   --command-id RunPowerShellScript \
+   --scripts @- <<'PS'
+   Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+
+   Remove-Item C:\inetpub\wwwroot\iisstart.htm -ErrorAction SilentlyContinue
+   Set-Content -Path "C:\inetpub\wwwroot\iisstart.htm" -Value "<h1>Hello World from az104-06-vm1</h1>"
+
+   New-Item -Path "C:\inetpub\wwwroot\image" -ItemType Directory -Force
+   Set-Content -Path "C:\inetpub\wwwroot\image\index.html" -Value "<h1>Image server - vm1</h1>"
+
+   New-Item -Path "C:\inetpub\wwwroot\video" -ItemType Directory -Force
+   Set-Content -Path "C:\inetpub\wwwroot\video\index.html" -Value "<h1>Video server - vm1</h1>"
+
+   # Ensure HTTP allowed in Windows firewall
+   netsh advfirewall firewall add rule name="Allow HTTP 80" dir=in action=allow protocol=TCP localport=80
+   PS
+   ```
+
+
 
 9. Wait for the deployment to complete.
 
