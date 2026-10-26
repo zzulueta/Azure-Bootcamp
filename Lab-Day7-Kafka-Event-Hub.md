@@ -590,7 +590,7 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
 2. Start one consumer in the `analytics` group in the background and look at its log:
 
    ```bash
-   python consumer.py analytics 150 > ~/c1.log 2>&1 &
+   python consumer.py analytics 300 > ~/c1.log 2>&1 &
    sleep 25; cat ~/c1.log
    ```
 
@@ -605,10 +605,13 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
 3. Start a second consumer in the **same** group and wait for the group to rebalance:
 
    ```bash
-   python consumer.py analytics 150 > ~/c2.log 2>&1 &
+   python consumer.py analytics 300 > ~/c2.log 2>&1 &
    sleep 45
    grep -E "ASSIGNED|REVOKED" ~/c1.log ~/c2.log
    ```
+
+   > Do steps 3 and 4 within about 5 minutes. A consumer exits after 300 seconds without events. If consumer 1
+   > has already exited, the group hands all partitions to consumer 2 and you won't see the work being shared.
 
    **What you should see:** consumer 1 prints `REVOKED partitions: [0, 1, 2, 3]` and then gets a smaller
    share, for example `[0, 1]`. Consumer 2 prints `ASSIGNED` with the rest, for example `[2, 3]`.
