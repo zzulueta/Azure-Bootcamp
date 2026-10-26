@@ -359,7 +359,7 @@ In this task you write a complete Terraform configuration that deploys a tagged 
    ```bash
    terraform version
    ```
-   Terraform is pre-installed in Cloud Shell. If it is older than v1.5, see [Configure Terraform in Azure Cloud Shell with Bash](https://learn.microsoft.com/en-us/azure/developer/terraform/get-started-cloud-shell-bash).
+   Terraform is pre-installed in Cloud Shell and is updated to the latest release within a couple of weeks of its release. The output should show v1.5 or later. If a message says your version is **out of date**, it only means a newer release exists, and you can continue with the version shown. If the version is older than v1.5, see [Configure Terraform in Azure Cloud Shell with Bash](https://learn.microsoft.com/en-us/azure/developer/terraform/get-started-cloud-shell-bash).
 
 5. Confirm you are using the correct subscription:
 
