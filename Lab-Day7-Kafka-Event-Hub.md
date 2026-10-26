@@ -39,7 +39,7 @@ no longer has to run and patch a Kafka cluster. You will work through the follow
 - Azure Cloud Shell (**Bash**, browser-based) — no local tooling installation required
 - Basic familiarity with Day 6 (Service Bus and Event Grid), which is referenced in Task 7
 
-## Estimated Timing: 75 minutes
+## Estimated Timing: 90 minutes
 
 - Task 1: Provision Kafka-enabled Event Hubs
 - Task 2: Produce and consume with SAS
