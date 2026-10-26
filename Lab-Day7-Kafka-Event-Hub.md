@@ -524,11 +524,11 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
    The producer prints 10 delivery lines and the consumer processes the 10 new events.
    If you see an authorization error, wait another minute and retry.
 
-   > **How it works.** `consumer.py` and `producer.py` call `AzureCliCredential`, which in
-   > Cloud Shell uses your signed-in Azure CLI identity (if `az` asks you to sign in, run
-   > `az login --use-device-code`), and request a token for
+   > **How it works.** `consumer.py` and `producer.py` call `AzureCliCredential`, which uses the identity you
+   > signed in with `az login` in step 4, and request a token for
    > `https://<namespace>.servicebus.windows.net/.default`. `DefaultAzureCredential` is not used here
-   > because in Cloud Shell its managed identity step fails with `AudienceNotSupported`.
+   > because in Cloud Shell its managed identity step fails with `AudienceNotSupported`, and Cloud Shell's
+   > built-in sign-in can't issue tokens for the Event Hubs audience.
    > On an Azure VM, App Service or AKS pod, you would use `ManagedIdentityCredential` (or
    > `DefaultAzureCredential`) instead, so **no secret exists anywhere**.
 
