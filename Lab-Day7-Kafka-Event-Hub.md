@@ -236,7 +236,8 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
    ```bash
    pip install confluent-kafka azure-identity azure-eventhub --quiet --user
    ```
-
+   > Note: `pip` prints `dependency resolver ... ansible-core ... requires packaging`. This is a harmless warning about software preinstalled in Cloud Shell. Confirm the install with `python -c "import confluent_kafka, azure.identity, azure.eventhub; print('OK')"` and continue.
+   
 3. Create a least-privilege SAS policy for the application and read its connection string:
 
    ```bash
@@ -967,6 +968,7 @@ Azure offers Service Bus and Event Grid.
 | Consumer exits immediately with `processed=0` | The group already committed all offsets. Produce more events, or use a different consumer group. |
 | Consumer shows no `ASSIGNED` line | The group join or rebalance is still in progress. Wait up to 45 seconds. |
 | `ModuleNotFoundError` | Rerun the `pip install` command from Task 2, Step 2. |
+| `pip` prints `dependency resolver ... ansible-core ... requires packaging` | This is a harmless warning about software preinstalled in Cloud Shell. Confirm the install with `python -c "import confluent_kafka, azure.identity, azure.eventhub; print('OK')"` and continue. |
 | `$ConnectionString` appears empty | Use the heredoc with `'EOF'` in single quotes, as shown, so that the shell does not expand `$ConnectionString` or `$Default`. |
 | No blobs in the capture container | Wait for the 60-second capture window to close and rerun the list command. |
 | The Process data card or job creation fails | Make sure the event hub is publicly accessible and the `Microsoft.StreamAnalytics` resource provider is registered for the subscription (**Subscriptions → Resource providers**). |
