@@ -575,13 +575,15 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    python producer.py 30 | awk '{print $1, $2}' | sort | uniq -c
    ```
 
-   Every key (for example `C-100`) appears against **exactly one** partition. Events with
-   the same key always land in the same partition, so **their relative order is preserved** for that
-   customer.
+   **What you should see:** a short table with one row per customer, such as `8 key=C-100 partition=3`.
+   Each customer (key) appears next to only **one** partition number. The numbers add up to 30.
 
-   > Ordering in Kafka and Event Hubs is guaranteed *per partition*, not across the
-   > whole topic. Choose a key (customerId, orderId, deviceId) that matches the unit that
-   > must stay in order.
+   **What it means:** Kafka uses the key to choose the partition, so the same customer always goes to the
+   same partition. Inside a partition, events stay in the order they were sent. This keeps each
+   customer's events in order.
+
+   > Order is only guaranteed *inside one partition*, not across the whole topic. Pick a key
+   > (customerId, orderId, deviceId) that matches the thing that must stay in order.
 
 ### Scale out within a consumer group
 
@@ -592,8 +594,13 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    sleep 25; cat ~/c1.log
    ```
 
-   Consumer 1 owns all four partitions: `ASSIGNED partitions: [0, 1, 2, 3]`, followed by the
-   events the `analytics` group has not read yet (the 3 sent at the end of Task 3 plus the 30 produced above).
+   **What you should see:** the first line is `ASSIGNED partitions: [0, 1, 2, 3]`, followed by one `MSG`
+   line for every event the `analytics` group has not read yet. That is the 3 events sent at the end of
+   Task 3 plus the 30 you just produced, so about 33. Wait a few more seconds if the list looks short, and
+   check with `grep -c MSG ~/c1.log`.
+
+   **What it means:** a consumer alone in a group is given all four partitions, so it reads everything.
+   It starts where `analytics` stopped last time, not at the beginning.
 
 3. Start a second consumer in the **same** group and wait for the group to rebalance:
 
@@ -603,9 +610,13 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    grep -E "ASSIGNED|REVOKED" ~/c1.log ~/c2.log
    ```
 
-   Consumer 1 logs `REVOKED` and then receives a smaller assignment, for example `[0, 1]`,
-   while consumer 2 receives the rest, for example `[2, 3]`. The group has split the partitions
-   between its members. (Rebalancing can take up to about 45 seconds.)
+   **What you should see:** consumer 1 prints `REVOKED partitions: [0, 1, 2, 3]` and then gets a smaller
+   share, for example `[0, 1]`. Consumer 2 prints `ASSIGNED` with the rest, for example `[2, 3]`.
+   The rebalance can take up to about 45 seconds.
+
+   **What it means:** both consumers use the same group name, so Kafka treats them as one team and
+   divides the partitions between them. Each partition is read by only one member of the group at a time.
+   The `REVOKED` line is consumer 1 giving up some partitions so consumer 2 can take them.
 
 4. Produce more events and see the work being shared:
 
@@ -615,9 +626,14 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    echo "consumer 1: $(grep -c MSG ~/c1.log) total"; echo "consumer 2: $(grep -c MSG ~/c2.log) total"
    ```
 
-   Both consumers process events, each only from its own partitions. This is how a consumer
-   group scales horizontally, and why **partitions cap parallelism**: a fifth consumer in this
-   group would sit idle.
+   **What you should see:** two totals, one for each consumer, and both are above zero. Together they
+   add up to about 73: consumer 1's 33 earlier events plus the 40 new ones. Consumer 2 only counts events
+   it read after joining the group.
+
+   **What it means:** the work is being shared. Each consumer only reads from its own partitions. This is
+   how a consumer group handles more load: you add consumers. It is also why **the number of partitions
+   limits how many consumers can work at once**. With 4 partitions, a fifth consumer in the group would
+   have nothing to read.
 
 5. Stop the background consumers:
 
@@ -633,9 +649,14 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    python consumer.py fraud-detection 30 | tail -n 3
    ```
 
-   The group has never read before, so `auto.offset.reset=earliest` makes it read **every
-   retained event** (all events from Tasks 2–4) even though `analytics` has already processed them.
-   Note the `processed=` count on the last line.
+   **What you should see:** the last three lines of the output, ending with
+   `DONE group=fraud-detection processed=N duplicates=0`. Write down `N`. It should be about 100, because
+   it counts every event you have sent in the lab so far (roughly 20 + 10 + 3 + 30 + 40, or more if you
+   ran the producer extra times).
+
+   **What it means:** `fraud-detection` is a new group with no saved position. Because of
+   `auto.offset.reset=earliest`, it starts at the oldest event that Event Hubs still keeps. It reads
+   everything, even though `analytics` already read the same events. Groups do not affect each other.
 
 7. Run it again:
 
@@ -643,7 +664,10 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    python consumer.py fraud-detection 30 | tail -n 3
    ```
 
-   This time `processed=0`: the group has committed its offsets and resumes where it left off.
+   **What you should see:** `DONE group=fraud-detection processed=0 duplicates=0`.
+
+   **What it means:** after the first run, the group saved its position (its committed offsets). When it
+   starts again, it continues from that saved position, so there is nothing new to read.
 
 8. Now replay the full history with a brand-new group:
 
@@ -651,10 +675,13 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    python consumer.py audit-replay 30 | tail -n 1
    ```
 
-   The `processed=` count equals the first `fraud-detection` run. Because Event Hubs
-   **retains** events for 24 hours regardless of whether they were read, a new consumer
-   group, or an existing one with reset offsets, can replay history. This is a key
-   difference from a queue, where a message is gone once it is completed.
+   **What you should see:** one line, `DONE group=audit-replay processed=N`, with the same `N` as the
+   first `fraud-detection` run.
+
+   **What it means:** `audit-replay` is another new group, so it also starts from the oldest event and
+   reads the whole history again. Event Hubs keeps events for 24 hours whether or not anyone read them,
+   so a new group (or an existing group with its offsets reset) can replay old events at any time. A
+   queue works differently: once a message is completed, it is gone.
 
 ### At-least-once delivery and idempotent consumers
 
@@ -666,9 +693,13 @@ All commands below use Entra ID authentication (`AUTH=oauth` is still exported i
    python consumer.py analytics 30 | grep -E "DUPLICATE|DONE"
    ```
 
-   The consumer reports `DUPLICATE skipped` for 3 events and ends with
-   `processed=5 duplicates=3`. (If a few events from step 4 were not committed before you
-   stopped the consumers, `processed` can be slightly higher, but `duplicates=3` stays the same.)
+   **What you should see:** three `DUPLICATE skipped eventId=…` lines and a final line
+   `DONE group=analytics processed=5 duplicates=3`. (If a few events from step 4 were not committed before
+   you stopped the consumers, `processed` can be a little higher, but `duplicates=3` stays the same.)
+
+   **What it means:** the producer sent 8 messages, but only 5 were different events. The last 3 were
+   copies with the same `eventId`. The consumer remembers each `eventId` it has seen, so it processes
+   each real event once and skips the copies.
 
    > **Why this matters.**
    > - `enable.idempotence=true` on the producer stops the **broker** from storing duplicates caused by *network
