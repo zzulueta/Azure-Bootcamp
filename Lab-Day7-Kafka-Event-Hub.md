@@ -41,16 +41,14 @@ no longer has to run and patch a Kafka cluster. You will work through the follow
 
 ## Estimated Timing: 75 minutes
 
-| Part | Estimated time |
-| --- | --- |
-| Task 1: Provision Kafka-enabled Event Hubs | 8 min |
-| Task 2: Produce and consume with SAS | 8 min |
-| Task 3: Switch to Microsoft Entra ID (OAuth 2.0) | 10 min |
-| Task 4: Partitions, consumer groups and idempotency | 14 min |
-| Task 5: Multi-protocol access and Capture | 10 min |
-| Task 6: Consume the stream with an Azure Function | 15 min |
-| Task 7: Choose the right service, then clean up | 5 min |
-| Lab introduction and setup | 5 min |
+Task 1: Provision Kafka-enabled Event Hubs
+Task 2: Produce and consume with SAS
+Task 3: Switch to Microsoft Entra ID (OAuth 2.0)
+Task 4: Partitions, consumer groups and idempotency
+Task 5: Multi-protocol access and Capture
+Task 6: Consume the stream with an Azure Function
+Task 7: Choose the right service, then clean up
+
 
 ## Lab Scenario
 
