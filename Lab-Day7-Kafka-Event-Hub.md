@@ -463,6 +463,8 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
    > **What changed from a normal Kafka client?** Only `bootstrap.servers` and the three
    > SASL lines. The producer and consumer logic is plain Kafka code.
 
+10. In the Portal, open the `orders-stream` event hub → **Data Explorer**. Select **View events** to see the incoming messages.
+
 ---
 
 ## Task 3: Switch to Microsoft Entra ID (OAuth 2.0)
@@ -492,6 +494,8 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
    > namespace → **Access control (IAM)** → **Add role assignment**.
 
 2. Wait about 1–2 minutes for the role assignments to propagate.
+
+3. Go to the Azure portal → your Event Hubs namespace → **Access control (IAM)** to verify that your role assignments are in place.
 
 ### Run the Kafka clients with OAuth
 
