@@ -866,7 +866,6 @@ Terraform includes built-in commands that catch common authoring mistakes before
    terraform workspace list
    ```
 
-4. In the Azure portal, navigate to **RG-Lab1** and select **Activity log**. Review the operations Terraform performed — each entry records who made the change, when, and the outcome.
 
 **Common pitfalls to avoid:**
 - Hardcoded resource names in Terraform files — use `variable` instead
