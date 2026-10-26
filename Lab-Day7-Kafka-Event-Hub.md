@@ -265,7 +265,7 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
 
    cat <<'EOF' > kafka_common.py
    import os
-   from azure.identity import DefaultAzureCredential
+   from azure.identity import AzureCliCredential
 
    TOPIC = "orders-stream"
 
@@ -280,7 +280,7 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
            "error_cb": lambda e: print("KAFKA ERROR:", e, flush=True),
        }
        if os.environ.get("AUTH", "sas") == "oauth":
-           cred = DefaultAzureCredential()
+           cred = AzureCliCredential()   # Cloud Shell: uses your signed-in Azure CLI identity
 
            def oauth_cb(_config):
                # confluent-kafka expects (token, expiry in seconds since epoch)
@@ -511,10 +511,12 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
    The producer prints 10 delivery lines and the consumer processes the 10 new events.
    If you see an authorization error, wait another minute and retry.
 
-   > **How it works.** `consumer.py` and `producer.py` call `DefaultAzureCredential`, which in
-   > Cloud Shell uses your signed-in identity, and request a token for
-   > `https://<namespace>.servicebus.windows.net/.default`. On an Azure VM, App Service or AKS
-   > pod, the same code would use a managed identity, so **no secret exists anywhere**.
+   > **How it works.** `consumer.py` and `producer.py` call `AzureCliCredential`, which in
+   > Cloud Shell uses your signed-in identity (no `az login` needed), and request a token for
+   > `https://<namespace>.servicebus.windows.net/.default`. `DefaultAzureCredential` is not used here
+   > because in Cloud Shell its managed identity step fails with `AudienceNotSupported`.
+   > On an Azure VM, App Service or AKS pod, you would use `ManagedIdentityCredential` (or
+   > `DefaultAzureCredential`) instead, so **no secret exists anywhere**.
 
 ### Disable SAS authentication
 
@@ -682,14 +684,14 @@ another. This matters for the analytics team, who prefer native Azure tooling.
    import os, threading
    from collections import Counter
    from azure.eventhub import EventHubConsumerClient
-   from azure.identity import DefaultAzureCredential
+   from azure.identity import AzureCliCredential
 
    counts = Counter()
    client = EventHubConsumerClient(
        fully_qualified_namespace=os.environ["EH_NAMESPACE"],
        eventhub_name="orders-stream",
        consumer_group="$Default",
-       credential=DefaultAzureCredential(),
+       credential=AzureCliCredential(),
    )
 
 
@@ -984,6 +986,7 @@ Azure offers Service Bus and Event Grid.
 | Consumer exits immediately with `processed=0` | The group already committed all offsets. Produce more events, or use a different consumer group. |
 | Consumer shows no `ASSIGNED` line | The group join or rebalance is still in progress. Wait up to 45 seconds. |
 | `ModuleNotFoundError` | Rerun the `pip install` command from Task 2, Step 2. |
+| `DefaultAzureCredential failed ... AudienceNotSupported` with `AUTH=oauth` | `DefaultAzureCredential` can't get an Event Hubs token from the Cloud Shell managed identity endpoint. Use `AzureCliCredential` as shown in `kafka_common.py` and `amqp_reader.py`. You don't need `az login` in Cloud Shell. |
 | Producer prints `GETPID ... Failed to acquire idempotence PID ... retrying` | A harmless startup warning. The idempotent producer retries and succeeds. Continue if the delivery lines appear and there is no `FAILED:` line. |
 | `pip` prints `dependency resolver ... ansible-core ... requires packaging` | This is a harmless warning about software preinstalled in Cloud Shell. Confirm the install with `python -c "import confluent_kafka, azure.identity, azure.eventhub; print('OK')"` and continue. |
 | `$ConnectionString` appears empty | Use the heredoc with `'EOF'` in single quotes, as shown, so that the shell does not expand `$ConnectionString` or `$Default`. |
