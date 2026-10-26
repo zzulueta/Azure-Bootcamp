@@ -22,8 +22,8 @@ no longer has to run and patch a Kafka cluster. You will work through the follow
 - Explore partitions, ordering, consumer groups, offset replay and idempotent processing
 - Read Kafka-produced events over AMQP with the native Azure SDK and archive them with
   Event Hubs Capture
-- Deploy a serverless Azure Function that consumes the stream with a managed identity
-  and applies a simple fraud-detection rule
+- Build a no-code Azure Stream Analytics job that reads the stream with a managed identity
+  and applies simple fraud-detection rules
 - Decide which workloads belong on Event Hubs, Service Bus or Event Grid
 
 ## Pre-requisites
@@ -35,19 +35,19 @@ no longer has to run and patch a Kafka cluster. You will work through the follow
   the same region you will deploy resources to (e.g., Australia East). Name the
   resource group RG-Lab7-yourname. Note the resource group name for use in all
   lab tasks.
-- Owner rights at the resource group level (required to create role assignments in Task 3)
+- Owner rights at the resource group level (required to create role assignments in Tasks 3 and 6)
 - Azure Cloud Shell (**Bash**, browser-based) — no local tooling installation required
 - Basic familiarity with Day 6 (Service Bus and Event Grid), which is referenced in Task 7
 
 ## Estimated Timing: 75 minutes
 
-Task 1: Provision Kafka-enabled Event Hubs
-Task 2: Produce and consume with SAS
-Task 3: Switch to Microsoft Entra ID (OAuth 2.0)
-Task 4: Partitions, consumer groups and idempotency
-Task 5: Multi-protocol access and Capture
-Task 6: Consume the stream with an Azure Function
-Task 7: Choose the right service, then clean up
+- Task 1: Provision Kafka-enabled Event Hubs
+- Task 2: Produce and consume with SAS
+- Task 3: Switch to Microsoft Entra ID (OAuth 2.0)
+- Task 4: Partitions, consumer groups and idempotency
+- Task 5: Multi-protocol access and Capture
+- Task 6: Process the stream with Azure Stream Analytics (no code)
+- Task 7: Choose the right service, then clean up
 
 
 ## Lab Scenario
@@ -92,19 +92,20 @@ RG-Lab7 (Resource Group)
 │   │     Kafka endpoint: ehns-lab7-yourname.servicebus.windows.net:9093
 │   │
 │   └── Event Hub = Kafka topic: orders-stream        [4 partitions]
-│         ├── Consumer Group: analytics
-│         ├── Consumer Group: fraud-detection
-│         ├── Consumer Group: audit-replay
-│         ├── Consumer Group: fraud-function
+│         ├── Kafka groups (auto-created, offsets stored by the service):
+│         │     analytics, fraud-detection, audit-replay
+│         ├── Event Hubs consumer group: $Default       (AMQP reader)
+│         ├── Event Hubs consumer group: (created by the Stream Analytics job)
 │         └── Capture ──► Blob container: orders-capture (Avro files)
 │
 ├── Storage Account (stlab7yourname)                  [Capture archive]
 │
-├── Function App (func-lab7-yourname)                 [Flex Consumption, Python]
-│   ├── Managed identity ──► Azure Event Hubs Data Receiver (no SAS)
-│   └── Function: FraudDetector  (Event Hubs trigger, consumer group fraud-function)
+├── Stream Analytics job (asa-fraud-lab7-yourname)    [No-code editor]
+│   ├── Managed identity ──► Event Hubs (input) and Storage Blob Data Contributor (output)
+│   ├── Filter: qty = 3                         ──► fraud-alerts/bulk-orders
+│   └── Group by customerId (1 min), count > 5  ──► fraud-alerts/velocity
 │
-├── Storage Account (stfunclab7yourname)              [Function host and checkpoints]
+├── Storage Account (stfraudlab7yourname)             [ADLS Gen2, fraud alerts]
 │
 └── Cloud Shell clients
       ├── producer.py   (Kafka protocol, SAS or OAuth)
@@ -119,7 +120,7 @@ RG-Lab7 (Resource Group)
 - Task 3: Secure the Kafka endpoint with Microsoft Entra ID and Azure RBAC
 - Task 4: Work with partitions, consumer groups, offsets and idempotent processing
 - Task 5: Consume Kafka events over AMQP and archive them with Capture
-- Task 6: Build a serverless Event Hubs consumer with Azure Functions and a managed identity
+- Task 6: Build a no-code Stream Analytics job that reads the stream with a managed identity
 - Task 7: Select the appropriate Azure messaging service for each workload
 
 ---
@@ -189,24 +190,27 @@ it reads.
    > the same partition, which preserves order for that key. The number of consumers
    > that can read a topic in parallel within one group cannot exceed the partition count.
 
-### Create the consumer groups
+### Note the Kafka endpoint
 
-6. Open the `orders-stream` event hub. In the left menu, under **Entities**, select **Consumer groups**.
-
-7. Select **+ Consumer group** and create each of the following:
-
-   - `analytics`
-   - `fraud-detection`
-   - `audit-replay`
-
-   > Each consumer group tracks its own offsets, so each group reads the **whole** event stream
-   > independently. This is how the analytics and fraud teams can process every event
-   > without affecting each other.
-
-8. On the namespace **Overview** pane, note the **Host name**
+6. On the namespace **Overview** pane, note the **Host name**
    (`ehns-lab7-yourname.servicebus.windows.net`). This, with port `9093`, is your Kafka
    `bootstrap.servers` address. Unlike a Kafka cluster, which needs access to every broker,
    Event Hubs exposes a **single stable endpoint** for all partitions.
+
+### Consumer groups
+
+You do not create consumer groups for the Kafka clients in this lab.
+
+> **Kafka consumer groups are not Event Hubs consumer groups.** Kafka consumer groups on Event Hubs are
+> **auto-created** the first time a client uses a `group.id`, store their offsets in the Event Hubs
+> service, and don't appear in the Azure portal. Event Hubs consumer groups are created explicitly
+> (portal, CLI or ARM) and are used by AMQP consumers such as the Stream Analytics job in Task 6,
+> which keep their offsets in external storage. Kafka groups span the namespace, so choose group names carefully.
+>
+> Each Kafka group tracks its own offsets, so each group reads the **whole** event stream
+> independently. In Task 4, the `analytics`, `fraud-detection` and `audit-replay` groups are created
+> by running the consumer with that `group.id`. This is how the analytics and fraud teams can process
+> every event without affecting each other.
 
 ---
 
@@ -270,7 +274,8 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
        conf = {
            "bootstrap.servers": f"{ns}:9093",     # the Event Hubs Kafka endpoint
            "security.protocol": "SASL_SSL",        # TLS is mandatory
-           "socket.keepalive.enable": True,
+           "socket.keepalive.enable": True,        # Event Hubs closes idle connections
+           "metadata.max.age.ms": 180000,          # must be below 240000
            "error_cb": lambda e: print("KAFKA ERROR:", e, flush=True),
        }
        if os.environ.get("AUTH", "sas") == "oauth":
@@ -299,6 +304,9 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
    > | `sasl.mechanism=PLAIN` + `$ConnectionString` | SAS authentication. The literal user name is `$ConnectionString`; the password is the connection string |
    > | `sasl.mechanism=OAUTHBEARER` | Microsoft Entra ID authentication, used in Task 3 |
    >
+   > `socket.keepalive.enable` and `metadata.max.age.ms` follow the Event Hubs guidance for librdkafka clients.
+   > The producer also sets `request.timeout.ms=60000`. Other settings keep the client defaults.
+   >
    > The `AUTH` environment variable switches the authentication method without
    > changing any producer or consumer logic.
 
@@ -315,6 +323,7 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
 
    conf = kafka_conf()
    conf["enable.idempotence"] = True    # idempotent producer is supported
+   conf["request.timeout.ms"] = 60000   # librdkafka's 5000 ms default is too low for Event Hubs
    producer = Producer(conf)
 
 
@@ -688,7 +697,7 @@ another. This matters for the analytics team, who prefer native Azure tooling.
    The first five JSON events are printed, followed by the count per partition. The events were
    written with the **Kafka protocol** and read with **AMQP**, with no conversion step.
 
-   > Azure Stream Analytics, Azure Functions and other Azure integrations use the native
+   > Azure Stream Analytics (Task 6), Azure Functions and other Azure integrations use the native
    > Event Hubs interface, so the analytics team can consume the same stream
    > without any Kafka tooling. The `$Default` consumer group exists on every event hub.
 
@@ -743,216 +752,170 @@ another. This matters for the analytics team, who prefer native Azure tooling.
 
 ---
 
-## Task 6: Consume the Stream with an Azure Function
+## Task 6: Process the Stream with Azure Stream Analytics (No Code)
 
-The fraud team does not want to run and scale consumer processes. In this task you replace
-the hand-run `consumer.py` with an **Azure Function** that uses the native **Event Hubs trigger**.
-The platform runs it, scales it, and checkpoints its progress, and it authenticates with a
-**managed identity**. This is also required, because you disabled SAS authentication in Task 3.
+The fraud team does not want to write, run or scale consumer processes. In this task you replace
+the hand-run `consumer.py` with an **Azure Stream Analytics** job that you build in the Event Hubs
+portal with the **no-code editor**. The job reads the stream over the native Event Hubs interface
+(AMQP) as its own consumer group, applies the fraud rules, and writes alerts to Azure Data Lake
+Storage Gen2. It authenticates with a **managed identity**, which is also required because you
+disabled SAS authentication in Task 3.
 
-The function reads batches of order events and applies two simple fraud-check rules:
+The job applies two simple fraud-check rules:
 
-| Rule | Condition | Log message |
+| Rule | Condition | Output path |
 | --- | --- | --- |
-| Bulk order | `qty` is `3` | `FRAUD-CHECK bulk order` |
-| Velocity | A customer has more than `5` orders in one batch | `FRAUD-CHECK velocity` |
+| Bulk order | `qty` equals `3` | `bulk-orders/...` |
+| Velocity | A customer has more than `5` orders in a 1-minute window | `velocity/...` |
 
-### Create the Function App
+### Create the alert storage
 
-1. Set variables, and create a consumer group for the function. Replace `yourname` with your own value.
+1. Create a storage account with a hierarchical namespace (Data Lake Storage Gen2) and a container
+   for the alerts. Replace `yourname` with your own value.
 
    ```bash
    cd ~/lab7
-   APP="func-lab7-yourname"           # globally unique
-   FSA="stfunclab7yourname"           # 3-24 lowercase letters and digits, globally unique
-   NS_ID=$(az eventhubs namespace show -g $RG -n $NS --query id -o tsv)
+   FRAUD_SA="stfraudlab7yourname"     # 3-24 lowercase letters and digits, globally unique
 
-   az eventhubs eventhub consumer-group create -g $RG --namespace-name $NS \
-     --eventhub-name $HUB --name fraud-function
+   az storage account create -g $RG -n $FRAUD_SA -l australiaeast --sku Standard_LRS \
+     --enable-hierarchical-namespace true --allow-blob-public-access false
+   az storage container create --account-name $FRAUD_SA -n fraud-alerts --auth-mode key
    ```
 
-   > **Why a new consumer group?** The Functions host stores its checkpoints in Blob Storage, whereas
-   > the Kafka consumers in Task 4 commit offsets to Event Hubs. Using a separate group keeps the
-   > two mechanisms from interfering with each other.
+   > The no-code editor writes to **Azure Data Lake Storage Gen2**. Keep this account separate from
+   > the Capture archive from Task 5.
 
-2. Create a dedicated storage account and a Python function app on the **Flex Consumption** plan:
+### Build the job in the Event Hubs portal
 
-   ```bash
-   az storage account create -g $RG -n $FSA -l australiaeast --sku Standard_LRS --allow-blob-public-access false
+2. In the Azure portal, open the `ehns-lab7-yourname` namespace, and open the `orders-stream` event hub.
+   Under **Features**, select **Process data**, and select **Start** on the **Filter and ingest to ADLS Gen2** card.
+   Enter the job name `asa-fraud-lab7-yourname`, and select **Create**.
 
-   az functionapp create -g $RG -n $APP --storage-account $FSA \
-     --flexconsumption-location australiaeast --runtime python --runtime-version 3.11
-   ```
+3. Select the **Event Hub** tile and configure the input:
 
-   > **Region check:** Flex Consumption is not available in every region. If the command reports that
-   > the region is unsupported, list the supported regions with
-   > `az functionapp list-flexconsumption-locations -o table` and use the same region for the new resources.
+   | Setting | Value |
+   | --- | --- |
+   | Consumer group | Keep the default **Create new** option |
+   | Serialization | **JSON** |
+   | Authentication method | **Managed Identity** (system-assigned) |
+
+   Select **Connect**.
+
+   > **Why Managed Identity?** SAS authentication is disabled on the namespace, so a connection-string
+   > input would fail. When you select a managed identity, the no-code editor grants the job's identity
+   > the **Azure Event Hubs Data Owner** role. This needs your Owner rights. In production, assign
+   > only **Azure Event Hubs Data Receiver** to an input-only job.
    >
-   > **Why a separate storage account?** The Functions host stores code, state and checkpoints in
-   > this account. Keep it separate from the Capture archive, and limit who can access it.
+   > **A new Event Hubs consumer group.** Unlike Kafka groups, Event Hubs consumer groups are not
+   > auto-created, so the editor creates one for the job. This keeps its read position independent of
+   > `amqp_reader.py` on `$Default`.
 
-### Give the function a managed identity
-
-3. Enable a system-assigned managed identity, grant it read access to the event stream,
-   and point the trigger's connection at the namespace:
-
-   ```bash
-   PRINCIPAL_ID=$(az functionapp identity assign -g $RG -n $APP --query principalId -o tsv)
-
-   az role assignment create --assignee-object-id $PRINCIPAL_ID --assignee-principal-type ServicePrincipal \
-     --role "Azure Event Hubs Data Receiver" --scope $NS_ID
-
-   az functionapp config appsettings set -g $RG -n $APP \
-     --settings "EventHubConnection__fullyQualifiedNamespace=$EH_NAMESPACE"
-   ```
-
-   > **Identity-based connection.** The app setting is named `<CONNECTION_NAME>__fullyQualifiedNamespace`.
-   > The trigger's `connection="EventHubConnection"` refers to this prefix, so the Functions runtime
-   > obtains Entra ID tokens for the identity and **no connection string or key exists anywhere**.
-   > Only the **Data Receiver** role is assigned, which is the least privilege a trigger needs.
-
-### Create and deploy the function
-
-4. Create the function project:
-
-   ```bash
-   mkdir -p ~/lab7/fraud-func && cd ~/lab7/fraud-func
-
-   cat <<'EOF' > requirements.txt
-   azure-functions
-   EOF
-
-   cat <<'EOF' > host.json
-   {
-     "version": "2.0",
-     "extensionBundle": {
-       "id": "Microsoft.Azure.Functions.ExtensionBundle",
-       "version": "[4.*, 5.0.0)"
-     }
-   }
-   EOF
-
-   cat <<'EOF' > function_app.py
-   import json
-   import logging
-   from collections import Counter
-
-   import azure.functions as func
-
-   app = func.FunctionApp()
-
-
-   @app.function_name(name="FraudDetector")
-   @app.event_hub_message_trigger(
-       arg_name="events",
-       event_hub_name="orders-stream",
-       connection="EventHubConnection",
-       consumer_group="fraud-function",
-       cardinality="many",            # receive events in batches
-   )
-   def fraud_detector(events: list[func.EventHubEvent]):
-       per_customer = Counter()
-       for event in events:
-           order = json.loads(event.get_body().decode("utf-8"))
-           per_customer[order["customerId"]] += 1
-           if order["qty"] == 3:
-               logging.warning("FRAUD-CHECK bulk order eventId=%s customer=%s sku=%s",
-                               order["eventId"][:8], order["customerId"], order["sku"])
-
-       for customer, count in per_customer.items():
-           if count > 5:
-               logging.warning("FRAUD-CHECK velocity customer=%s orders_in_batch=%d", customer, count)
-
-       logging.info("BATCH processed events=%d", len(events))
-   EOF
-   ```
-
-   > | Part | Purpose |
-   > | --- | --- |
-   > | `event_hub_message_trigger` | Fires when events arrive. No polling loop, group join or offset code is needed. |
-   > | `consumer_group="fraud-function"` | The group this function reads as. |
-   > | `cardinality="many"` | Delivers a batch (a list) per invocation, which is more efficient at high volume. |
-   > | `connection="EventHubConnection"` | Prefix of the identity-based app settings from Step 3. |
-
-5. Package and deploy the project with a remote build (recommended for Python so that
-   dependencies are built for Linux):
-
-   ```bash
-   rm -f ~/lab7/fraud-func.zip && zip -r ~/lab7/fraud-func.zip . > /dev/null
-
-   az functionapp deployment source config-zip -g $RG -n $APP \
-     --src ~/lab7/fraud-func.zip --build-remote true
-   ```
-
-   Deployment takes 2–3 minutes.
-
-6. Confirm the function was registered:
-
-   ```bash
-   az functionapp function list -g $RG -n $APP --query "[].name" -o tsv
-   ```
-
-   The output should include `FraudDetector`. If it is empty, wait a minute and run the command again.
-
-### Send traffic and observe the function
-
-7. Produce a burst of orders with the Kafka producer from Task 2:
+4. The editor shows live data only when events are flowing. In Cloud Shell, send some events
+   so that the fields (`eventId`, `customerId`, `sku`, `qty`, `ts`) appear in **Data preview**:
 
    ```bash
    cd ~/lab7
    export EH_NAMESPACE="$NS.servicebus.windows.net" AUTH=oauth
-   python producer.py 60 > /dev/null
+   for i in 1 2 3; do python producer.py 10 > /dev/null; sleep 10; done
    ```
 
-   > Kafka wrote these events, and the function reads them over the native Event Hubs interface (AMQP).
-   > The new `fraud-function` group also starts at the beginning of the retained stream, so the
-   > function first processes the history from earlier tasks, as the `audit-replay` group did in Task 4.
+   If the fields do not appear, select **Autodetect fields**. Confirm that `qty` has the type **Int**.
 
-8. In the portal, open the `func-lab7-yourname` function app → **Application Insights**
-   → **Logs**, switch to **KQL mode** if needed, and run:
+### Add the bulk-order rule
 
-   ```kusto
-   traces
-   | where message startswith "FRAUD-CHECK" or message startswith "BATCH processed"
-   | order by timestamp desc
-   | take 50
-   ```
+5. Select the **Filter** tile, and set **qty** **equals** `3`.
 
-   You should see `FRAUD-CHECK bulk order` and `FRAUD-CHECK velocity` warnings, plus `BATCH processed events=N` lines.
-   Telemetry can take 3–5 minutes to appear. If the query returns no rows, wait and rerun it.
+6. Select the **Azure Data Lake Storage Gen2** tile and configure the output:
 
-   > The Application Insights resource is created automatically with the function app, in this resource
-   > group. This is the same telemetry store and KQL you used in Day 6.
+   | Setting | Value |
+   | --- | --- |
+   | Storage account | `stfraudlab7yourname` |
+   | Container | `fraud-alerts` |
+   | Authentication method | **Managed Identity** |
+   | Path pattern | `bulk-orders/{date}/{time}` |
+   | Serialization | **JSON** |
 
-### Checkpoints and scale
+   Select **Connect**. The editor grants the job's identity the **Storage Blob Data Contributor**
+   role on the storage account.
 
-9. List the checkpoint blobs that the Functions host wrote to its storage account:
+### Add the velocity rule
 
-   ```bash
-   az storage blob list --account-name $FSA -c azure-webjobs-eventhub --auth-mode key \
-     --query "[].name" -o tsv | head -n 8
-   ```
+7. In the ribbon, under **Operations**, select **Group by** and connect it to the **Event Hub** tile. Configure it:
 
-   You should see blobs for the namespace, `orders-stream`, the `fraud-function` group and each of the
-   4 partitions. These are the function's read positions, equivalent to the offsets that `consumer.py`
-   committed to Event Hubs.
+   | Setting | Value |
+   | --- | --- |
+   | Aggregation | **Count** on `eventId` |
+   | Group by | `customerId` |
+   | Time window | **Tumbling**, `1` minute |
 
-10. Restart the app and send a few new events to prove that it resumes where it left off:
+8. Add a second **Filter** tile after **Group by**. Select the count field that **Group by** produces,
+   and set it **greater than** `5`.
+
+9. From the ribbon, add a second **ADLS Gen2** output and connect it to this **Filter** tile. Use the
+   same storage account, container and managed identity, but set the **Path pattern** to
+   `velocity/{date}/{time}`.
+
+### Start the job
+
+10. Optionally, select **Get static preview** on each tile to check the results. Then select **Save**, and select **Start**.
+    Set **Output start time** to **Now**, keep the recommended number of **Streaming units**, and select **Start**.
+
+11. In the event hub, open **Process data** → **Stream Analytics jobs**, and select **Refresh** until the
+    job status is **Running**. This takes up to 2 minutes.
+
+    > The job only outputs events that arrive **after** it starts (**Output start time** = **Now**).
+    > To process history, you can choose a **Custom** start time. This is the Stream Analytics equivalent of
+    > the `audit-replay` group in Task 4.
+
+### Send traffic and verify
+
+12. Produce a burst of orders with the Kafka producer from Task 2:
 
     ```bash
-    az functionapp restart -g $RG -n $APP
-    sleep 30
-    python producer.py 5 > /dev/null
+    cd ~/lab7
+    python producer.py 60 > /dev/null
     ```
 
-    After a few minutes, rerun the KQL query from Step 8. The newest `BATCH processed` lines show only
-    the 5 new events. The function did **not** re-read the whole stream.
+    > Kafka wrote these events, and Stream Analytics reads them over AMQP. The 60 events are spread over
+    > 5 customers, so each customer has about 12 orders in the same 1-minute window. If the burst happens to
+    > cross a window boundary, send another 60 events.
 
-    > **Scale-out.** On the Flex Consumption plan, the platform adds instances as events accumulate,
-    > up to **one active consumer per partition** (4 here). This is the same "partitions cap
-    > parallelism" rule you saw with `consumer.py` in Task 4, without any rebalancing code. Delivery is still
-    > at least once, so a failed batch can be retried and the function should be idempotent. In
-    > production, write results keyed by `eventId`.
+13. Wait 2–3 minutes (the output writes a batch after at most 1 minute), then list the alert files:
+
+    ```bash
+    az storage blob list --account-name $FRAUD_SA -c fraud-alerts --auth-mode key \
+      --query "[?properties.contentLength > \`0\`].{name:name, bytes:properties.contentLength}" -o table
+    ```
+
+    You should see files under both `bulk-orders/` and `velocity/`.
+
+14. Download one file from each path and look at the content:
+
+    ```bash
+    for P in bulk-orders velocity; do
+      BLOB=$(az storage blob list --account-name $FRAUD_SA -c fraud-alerts --auth-mode key \
+        --query "[?starts_with(name, '$P') && properties.contentLength > \`0\`].name | [0]" -o tsv)
+      az storage blob download --account-name $FRAUD_SA -c fraud-alerts -n "$BLOB" \
+        --auth-mode key --file ~/$P.json --no-progress > /dev/null
+      echo "== $P"; head -n 3 ~/$P.json
+    done
+    ```
+
+    Every `bulk-orders` record has `"qty":3`. Every `velocity` record shows a `customerId` with a count greater than `5`.
+
+### Review the job
+
+15. In **Process data** → **Stream Analytics jobs**, select **Open metrics** for the job. **Input events** and
+    **Output events** rise after your producer run, and **Backlogged input events** stays near zero.
+
+16. In the `orders-stream` event hub, open **Consumer groups**. The group created by the job is listed.
+    The Kafka groups from Task 4 are not, because Kafka groups are not shown in the portal.
+
+17. Stop the job so that it stops billing: in **Stream Analytics jobs**, select the job, and select **Stop**.
+
+    > **Compared with `consumer.py`:** there is no group-join, offset or deployment code, and the platform
+    > scales with streaming units. Delivery is still at least once. For the ADLS Gen2 output, the
+    > preview **Exactly once delivery** write mode is available when you need it.
 
 ---
 
@@ -969,7 +932,7 @@ Azure offers Service Bus and Event Grid.
    | # | Workload |
    | --- | --- |
    | 1 | Website clickstream: 50,000 events/second, read by analytics and fraud teams independently, replayable for 24 hours |
-   | 2 | Customer order submissions that must be processed exactly once by a worker, with retries and a dead-letter queue (Day 6 `order-intake`) |
+   | 2 | Customer order submissions that must be handled by exactly one competing worker, with retries and a dead-letter queue (Day 6 `order-intake`) |
    | 3 | Notify invoice and warehouse services about a new order, each with its own filtering rules (Day 6 `order-notifications`) |
    | 4 | React when a blob lands in Storage, so that a function resizes the image |
    | 5 | Warehouse scanner telemetry from existing Kafka producers that must be archived to Blob cheaply |
@@ -1006,17 +969,17 @@ Azure offers Service Bus and Event Grid.
 | `ModuleNotFoundError` | Rerun the `pip install` command from Task 2, Step 2. |
 | `$ConnectionString` appears empty | Use the heredoc with `'EOF'` in single quotes, as shown, so that the shell does not expand `$ConnectionString` or `$Default`. |
 | No blobs in the capture container | Wait for the 60-second capture window to close and rerun the list command. |
-| Function deployment fails or `FraudDetector` is not listed | Make sure `--build-remote true` was used, that the zip was created from **inside** `fraud-func` (so `function_app.py` is at the root of the zip), and that the region supports Flex Consumption. |
-| Function runs but logs `Unauthorized` or no events are processed | The managed identity needs the **Azure Event Hubs Data Receiver** role on the namespace (allow 1–3 minutes to propagate), and the `EventHubConnection__fullyQualifiedNamespace` setting must be exactly `<namespace>.servicebus.windows.net`. |
-| `traces` query returns no rows | Application Insights ingestion takes 3–5 minutes. Check **Functions → FraudDetector → Invocations** in the portal for earlier confirmation. |
-| `az storage blob list` shows no checkpoint blobs | The function has not processed a batch yet. Send more events and wait a minute. |
-| Variables such as `$RG`, `$NS` or `$HUB` are empty | Cloud Shell restarted. Set them again with the Task 2, Step 1 commands. |
+| The Process data card or job creation fails | Make sure the event hub is publicly accessible and the `Microsoft.StreamAnalytics` resource provider is registered for the subscription (**Subscriptions → Resource providers**). |
+| Job input or output reports `Unauthorized` | The job's managed identity needs **Azure Event Hubs Data Owner** (or **Data Receiver**) on the event hub and **Storage Blob Data Contributor** on `stfraudlab7yourname`. Role assignments can take up to 8 minutes. A connection-string input fails because SAS is disabled. |
+| The Data preview shows no fields | No events are flowing. Run the producer from Step 4, then select **Autodetect fields**. |
+| No files in the `fraud-alerts` container | Make sure the job status is **Running** and that you sent events **after** it started. Output batches are written after at most 1 minute, so wait 2–3 minutes. Check **Runtime logs** in the editor. |
+| Only `bulk-orders` files appear | No customer exceeded 5 orders in one 1-minute window, for example because the burst crossed a window boundary. Run `python producer.py 60` again. || Variables such as `$RG`, `$NS` or `$HUB` are empty | Cloud Shell restarted. Set them again with the Task 2, Step 1 commands. |
 
 ---
 
 ## Cleanup
 
-**Note:** Event Hubs Standard (throughput unit), the storage accounts, the Function App and Application Insights incur charges while they exist. Delete resources promptly after the lab.
+**Note:** Event Hubs Standard (throughput unit), the storage accounts and the Stream Analytics job (billed per streaming unit while it runs) incur charges while they exist. Stop the job and delete resources promptly after the lab.
 
 1. Stop any leftover background consumers and clear the secrets from your shell:
 
@@ -1061,10 +1024,11 @@ Azure offers Service Bus and Event Grid.
 - **One stream, many protocols.** Events written with Kafka can be read over AMQP with the
   native Azure SDK and archived with Capture. Teams are not forced into Kafka tooling.
 
-- **Serverless consumers remove consumer plumbing.** An Azure Function with an Event Hubs trigger
-  and a managed identity needs no group-join code, no offset handling and no secrets. The platform
-  checkpoints progress in storage and scales out to at most one instance per partition, but delivery
-  is still at least once, so handlers must stay idempotent.
+- **No-code stream processing removes consumer plumbing.** A Stream Analytics job built in the Event Hubs
+  portal reads the stream over AMQP with a managed identity, needs no group-join code, no offset
+  handling and no secrets, and scales with streaming units. Event Hubs consumer groups are created
+  explicitly (the editor creates one for the job), unlike auto-created Kafka groups. Delivery is still at
+  least once.
 
 - **Use the right messaging service for each job.** Event Hubs is for high-volume streams
   and replay. Service Bus is for queues, topics, filtering and dead-lettering. Event Grid is for reactive
