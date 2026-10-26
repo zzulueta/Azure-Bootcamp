@@ -499,7 +499,16 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
 
 ### Run the Kafka clients with OAuth
 
-3. Switch both clients to `OAUTHBEARER`:
+4. Make sure the Azure CLI is signed in. The Python scripts use the same sign-in to get Entra ID tokens.
+   If the command asks you to sign in, follow the device-code prompt in your browser:
+
+   ```bash
+   az account show --query "{user:user.name, subscription:name}" -o table || az login --use-device-code
+   ```
+
+   Confirm that the subscription shown is the one that contains your resource group.
+
+5. Switch both clients to `OAUTHBEARER`:
 
    ```bash
    cd ~/lab7
@@ -512,7 +521,8 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
    If you see an authorization error, wait another minute and retry.
 
    > **How it works.** `consumer.py` and `producer.py` call `AzureCliCredential`, which in
-   > Cloud Shell uses your signed-in identity (no `az login` needed), and request a token for
+   > Cloud Shell uses your signed-in Azure CLI identity (if `az` asks you to sign in, run
+   > `az login --use-device-code`), and request a token for
    > `https://<namespace>.servicebus.windows.net/.default`. `DefaultAzureCredential` is not used here
    > because in Cloud Shell its managed identity step fails with `AudienceNotSupported`.
    > On an Azure VM, App Service or AKS pod, you would use `ManagedIdentityCredential` (or
@@ -520,13 +530,13 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
 
 ### Disable SAS authentication
 
-4. Turn off local (key-based) authentication on the namespace:
+6. Turn off local (key-based) authentication on the namespace:
 
    ```bash
    az eventhubs namespace update -g $RG -n $NS --disable-local-auth true
    ```
 
-5. Wait about 1 minute, then try the SAS-based client:
+7. Wait about 1 minute, then try the SAS-based client:
 
    ```bash
    AUTH=sas timeout 40 python producer.py 3
@@ -535,7 +545,7 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
    The client now fails with authentication errors (`KAFKA ERROR: ... SASL authentication error` or
    repeated broker disconnects) and no delivery lines appear.
 
-6. Confirm that Entra ID access still works:
+8. Confirm that Entra ID access still works:
 
    ```bash
    AUTH=oauth python producer.py 3
@@ -986,7 +996,8 @@ Azure offers Service Bus and Event Grid.
 | Consumer exits immediately with `processed=0` | The group already committed all offsets. Produce more events, or use a different consumer group. |
 | Consumer shows no `ASSIGNED` line | The group join or rebalance is still in progress. Wait up to 45 seconds. |
 | `ModuleNotFoundError` | Rerun the `pip install` command from Task 2, Step 2. |
-| `DefaultAzureCredential failed ... AudienceNotSupported` with `AUTH=oauth` | `DefaultAzureCredential` can't get an Event Hubs token from the Cloud Shell managed identity endpoint. Use `AzureCliCredential` as shown in `kafka_common.py` and `amqp_reader.py`. You don't need `az login` in Cloud Shell. |
+| `DefaultAzureCredential failed ... AudienceNotSupported` with `AUTH=oauth` | `DefaultAzureCredential` can't get an Event Hubs token from the Cloud Shell managed identity endpoint. Use `AzureCliCredential` as shown in `kafka_common.py` and `amqp_reader.py`. |
+| `AzureCliCredential.get_token failed: Please run 'az login'` | The Azure CLI in your Cloud Shell session isn't signed in. Run `az login --use-device-code`, check `az account show`, and retry. |
 | Producer prints `GETPID ... Failed to acquire idempotence PID ... retrying` | A harmless startup warning. The idempotent producer retries and succeeds. Continue if the delivery lines appear and there is no `FAILED:` line. |
 | `pip` prints `dependency resolver ... ansible-core ... requires packaging` | This is a harmless warning about software preinstalled in Cloud Shell. Confirm the install with `python -c "import confluent_kafka, azure.identity, azure.eventhub; print('OK')"` and continue. |
 | `$ConnectionString` appears empty | Use the heredoc with `'EOF'` in single quotes, as shown, so that the shell does not expand `$ConnectionString` or `$Default`. |
