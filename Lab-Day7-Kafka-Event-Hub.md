@@ -546,8 +546,8 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
    AUTH=sas timeout 40 python producer.py 3
    ```
 
-   The client now fails with authentication errors (`KAFKA ERROR: ... SASL authentication error` or
-   repeated broker disconnects) and no delivery lines appear.
+   The client now fails. You see `FAILED: KafkaError{code=TOPIC_AUTHORIZATION_FAILED...`. This failure is the expected result, because
+   SAS authentication is disabled.
 
 8. Confirm that Entra ID access still works:
 
