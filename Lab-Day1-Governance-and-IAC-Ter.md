@@ -151,7 +151,7 @@ Azure Policy lets you enforce standards automatically. In this task you assign a
    | Resource group | **RG-Lab1** |
    | Storage account name | `stlabyourname` |
    | Region | **Australia East** |
-   | Preferred storage type | **Azure Blob Storage or Azure Data Lake Storage Gen 2** |
+   | Primary Service | **Azure Blob Storage or Azure Data Lake Storage Gen 2** |
    | Redundancy | **LRS** |
 
 3. **Do not add any tags.** Select **Review + Create**.
@@ -208,7 +208,7 @@ Resource locks prevent accidental deletion or modification, independent of RBAC 
 
 Terraform is a cloud-agnostic Infrastructure as Code tool from HashiCorp. You describe the desired state of your infrastructure in HashiCorp Configuration Language (HCL), and Terraform calls the Azure APIs through the **AzureRM provider** to make reality match your configuration. Terraform keeps a **state file** that records the resources it manages.
 
-### Terraform language at a glance
+### Terraform concepts at a glance
 
 | Concept | Syntax | Purpose |
 | --- | --- | --- |
@@ -220,9 +220,12 @@ Terraform is a cloud-agnostic Infrastructure as Code tool from HashiCorp. You de
 | String interpolation | `"prefix${var.name}"` | Combine strings and values |
 | Conditional expression | `var.environment == "prod" ? "GRS" : "LRS"` | Choose a value based on a condition |
 | Output | `output "id" { value = azurerm_storage_account.sa.id }` | Value returned after apply |
-| Variable file | `dev.tfvars` | Environment-specific variable values |
+| Variable file | `terraform plan -var-file=dev.tfvars` | Environment-specific variable values passed with `-var-file` |
+| Initialize | `terraform init` | Download the providers the configuration needs |
 | Preview changes | `terraform plan` | Show what an apply would change |
+| Apply changes | `terraform apply` | Create, update, or delete resources to match the configuration |
 | State | `terraform.tfstate` | Record of the resources Terraform manages |
+
 ### Terraform language constructs
 
 **Terraform and provider blocks** declare which Terraform version and providers the configuration needs. The `azurerm` provider requires an empty `features {}` block:
@@ -263,8 +266,8 @@ variable "storage_account_name" {
   type        = string
 
   validation {
-    condition     = length(var.storage_account_name) >= 3 && length(var.storage_account_name) <= 11
-    error_message = "storage_account_name must be 3 to 11 characters."
+    condition     = can(regex("^[a-z0-9]{3,11}$", var.storage_account_name))
+    error_message = "storage_account_name must be 3 to 11 lowercase letters or digits."
   }
 }
 ```
@@ -299,6 +302,9 @@ resource "azurerm_storage_account" "storage" {
   account_tier             = "Standard"
   account_replication_type = local.replication_type
   account_kind             = "StorageV2"
+
+  # Block anonymous public access to blobs
+  allow_nested_items_to_be_public = false
 }
 ```
 
@@ -415,12 +421,12 @@ variable "resource_group_name" {
 }
 
 variable "storage_account_name" {
-  description = "Base name for the storage account (3–11 characters, lowercase)."
+  description = "Base name for the storage account (3–11 lowercase letters or digits)."
   type        = string
 
   validation {
-    condition     = length(var.storage_account_name) >= 3 && length(var.storage_account_name) <= 11
-    error_message = "storage_account_name must be between 3 and 11 characters."
+    condition     = can(regex("^[a-z0-9]{3,11}$", var.storage_account_name))
+    error_message = "storage_account_name must be 3 to 11 lowercase letters or digits."
   }
 }
 
@@ -495,6 +501,9 @@ resource "azurerm_storage_account" "storage" {
   min_tls_version            = "TLS1_2"
   https_traffic_only_enabled = true
   tags                       = local.common_tags
+
+  # Block anonymous public access to blobs
+  allow_nested_items_to_be_public = false
 }
 
 # ── Outputs ───────────────────────────────────────────────────────────────────
@@ -550,7 +559,7 @@ Terraform supports `.tfvars` files that hold the values for your input variables
 
 2. Paste the following, replacing `RG-Lab1-yourname` with your resource group name and `abc` with 1–3 characters of your initials:
 
-   > **Note:** `storage_account_name` must be **11 characters or fewer** (enforced by the `validation` block). The prefix `stlabdev` is 8 characters, so you have room for up to 3 characters of your initials (e.g. `stlabdevjsm`).
+   > **Note:** `storage_account_name` must be **3 to 11 lowercase letters or digits** (enforced by the `validation` block). The prefix `stlabdev` is 8 characters, so you have room for up to 3 characters of your initials (e.g. `stlabdevjsm`).
 
    ```hcl
    resource_group_name  = "RG-Lab1-yourname"
