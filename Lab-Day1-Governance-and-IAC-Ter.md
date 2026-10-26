@@ -416,7 +416,7 @@ provider "azurerm" {
 # ── Variables ─────────────────────────────────────────────────────────────────
 
 variable "resource_group_name" {
-  description = "Name of the existing resource group (for example RG-Lab1-yourname)."
+  description = "Name of the existing resource group (for example rg-lab1-yourname)."
   type        = string
 }
 
