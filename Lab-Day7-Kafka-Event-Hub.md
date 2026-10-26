@@ -426,6 +426,14 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
    > processing, and de-duplicating on `eventId`, is the idempotent-consumer pattern you
    > will test in Task 4.
 
+### What the scripts do
+
+| Script | What it does |
+| --- | --- |
+| `kafka_common.py` | Builds the Kafka connection settings. `AUTH=sas` (default) or `AUTH=oauth` selects the authentication method, so the other scripts never change. |
+| `producer.py` | Sends JSON order events (`eventId`, `customerId`, `sku`, `qty`, `ts`) keyed by `customerId`, so each customer's events stay in one partition and in order. Idempotence stops broker-side duplicates from retries. The `dup` argument re-sends the last 3 events to simulate an application retry. |
+| `consumer.py` | Reads as the consumer group you pass in (auto-created by Kafka). A new group starts at the oldest event, and offsets are committed only after processing. It skips events whose `eventId` it has already seen, prints partition assignments, and ends with a `DONE` summary. |
+
 ### Send and receive events
 
 7. Send 20 events:
