@@ -414,7 +414,7 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
                processed += 1
                print(f"MSG partition={msg.partition()} offset={msg.offset()} "
                      f"key={msg.key().decode()} sku={event['sku']}", flush=True)
-           consumer.commit(msg=msg, asynchronous=False)
+           consumer.commit(message=msg, asynchronous=False)
    finally:
        consumer.close()
        print(f"DONE group={group} processed={processed} duplicates={duplicates}", flush=True)
@@ -443,6 +443,10 @@ In this task you connect with SAS to see how little changes, and in Task 3 you r
    ```
 
    You should see 20 lines such as `key=C-300 partition=2 offset=0`, spread across partitions 0–3.
+
+   > **You may also see a warning at the top** such as
+   > `GETPID ... Failed to acquire idempotence PID from broker ... retrying`. This is a harmless
+   > startup message. The idempotent producer retries and succeeds. Only a `FAILED:` line is an error.
 
 8. Read them with the `analytics` consumer group:
 
@@ -976,6 +980,7 @@ Azure offers Service Bus and Event Grid.
 | Consumer exits immediately with `processed=0` | The group already committed all offsets. Produce more events, or use a different consumer group. |
 | Consumer shows no `ASSIGNED` line | The group join or rebalance is still in progress. Wait up to 45 seconds. |
 | `ModuleNotFoundError` | Rerun the `pip install` command from Task 2, Step 2. |
+| Producer prints `GETPID ... Failed to acquire idempotence PID ... retrying` | A harmless startup warning. The idempotent producer retries and succeeds. Continue if the delivery lines appear and there is no `FAILED:` line. |
 | `pip` prints `dependency resolver ... ansible-core ... requires packaging` | This is a harmless warning about software preinstalled in Cloud Shell. Confirm the install with `python -c "import confluent_kafka, azure.identity, azure.eventhub; print('OK')"` and continue. |
 | `$ConnectionString` appears empty | Use the heredoc with `'EOF'` in single quotes, as shown, so that the shell does not expand `$ConnectionString` or `$Default`. |
 | No blobs in the capture container | Wait for the 60-second capture window to close and rerun the list command. |
