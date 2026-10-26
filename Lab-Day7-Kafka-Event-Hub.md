@@ -499,14 +499,18 @@ Entra ID**, clients prove *who they are* and **Azure RBAC** decides what they ma
 
 ### Run the Kafka clients with OAuth
 
-4. Make sure the Azure CLI is signed in. The Python scripts use the same sign-in to get Entra ID tokens.
-   If the command asks you to sign in, follow the device-code prompt in your browser:
+4. Sign in to the Azure CLI with a full login. The Python scripts use this sign-in to get Entra ID tokens
+   for Event Hubs. Cloud Shell's built-in sign-in is not enough, because it can't issue tokens for the
+   Event Hubs audience. Follow the device-code prompt in your browser:
 
    ```bash
-   az account show --query "{user:user.name, subscription:name}" -o table || az login --use-device-code
+   az login --use-device-code
+   az account show --query "{user:user.name, subscription:name}" -o table
+   az account get-access-token --resource https://$EH_NAMESPACE --query expiresOn -o tsv
    ```
 
-   Confirm that the subscription shown is the one that contains your resource group.
+   Confirm that the subscription shown is the one that contains your resource group, and that the last
+   command prints an expiry time.
 
 5. Switch both clients to `OAUTHBEARER`:
 
