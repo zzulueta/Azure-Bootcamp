@@ -90,7 +90,7 @@ cost levers available before and after deployment.
    | Region | **Australia East** (keep consistent throughout the lab) |
    | Availability options | **No infrastructure redundancy required** |
    | Security type | **Standard** |
-   | Image | **Ubuntu Server 24.04 LTS – x64 Gen2** |
+   | Image | **Windows Server 2025 Datacenter: Azure Edition - x64 Gen2** |
    | VM architecture | **x64** |
    | Size | Select **See all sizes** → search `B2s` → choose **Standard_B2s** |
 
@@ -100,12 +100,11 @@ cost levers available before and after deployment.
    > servers, and CI agents are ideal candidates.
 
 4. Under **Administrator account**, choose **Password** and enter a username and
-   strong password. Note both — you will need them later.
+   strong password. Note both — you will need them later. For Windows VMs, this
+   will be the credentials you use to log in via RDP.
 
-5. Under **Inbound port rules**, set **Public inbound ports** to **None**.
-   You will access the VM through a managed channel (Bastion or serial console)
-   rather than exposing SSH directly.
-
+5. Under **Inbound port rules**, set **Public inbound ports** to **Allow selected ports** and select **RDP (3389)**.
+   
 6. Select the **Disks** tab. Note the **OS disk type** dropdown — changing from
    **Premium SSD** to **Standard SSD** or **Standard HDD** reduces storage cost
    for workloads that do not require high IOPS.
