@@ -200,6 +200,17 @@ to zero when idle, eliminating the concept of an "idle VM".
 > Functions Core Tools.
 
 5. Open **Azure Cloud Shell** (Bash) from the portal toolbar. Select Settings then **Go to Classic version**
+   Confirm you are using the correct subscription:
+
+   ```bash
+   az account show --query "{name:name, id:id}" -o table
+   ```
+
+   If not, set it:
+
+   ```bash
+   az account set --subscription "<your-subscription-id>"
+   ```
 
 6. Verify that Azure Functions Core Tools is available — it is pre-installed in Cloud Shell:
 
