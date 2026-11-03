@@ -242,7 +242,7 @@ to zero when idle, eliminating the concept of an "idle VM".
 
    > **Why `$(pwd)` instead of `~/`?** Cloud Shell's `code` command prepends `$HOME` to the path internally, so passing `~/lab3-func/...` causes it to double the home directory (e.g. `/home/user/home/user/...`). Using `$(pwd)` passes the already-resolved absolute path and avoids this.
 
-   Replace the entire contents of the file with the following, then press **Ctrl+S** to save and close the editor:
+   Replace the entire contents of the file with the following, then press **Ctrl+S** & **Ctrl+Q** to save and close the editor:
 
    ```javascript
    const { app } = require('@azure/functions');
