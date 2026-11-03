@@ -90,7 +90,7 @@ cost levers available before and after deployment.
    | Region | **Australia East** (keep consistent throughout the lab) |
    | Availability options | **No infrastructure redundancy required** |
    | Security type | **Standard** |
-   | Image | **Ubuntu Server 22.04 LTS – x64 Gen2** |
+   | Image | **Ubuntu Server 24.04 LTS – x64 Gen2** |
    | VM architecture | **x64** |
    | Size | Select **See all sizes** → search `B2s` → choose **Standard_B2s** |
 
