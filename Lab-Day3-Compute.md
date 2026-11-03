@@ -277,10 +277,10 @@ to zero when idle, eliminating the concept of an "idle VM".
 11. Copy the function URL from the deployment output. Open a browser and navigate to:
 
     ```
-    <function-url>?name=MYOB
+    <function-url>?name=Microsoft
     ```
 
-    Confirm you receive a JSON response with the message `Hello, MYOB!...`.
+    Confirm you receive a JSON response with the message `Hello, Microsoft!...`.
 
 12. Alternatively, test directly from Cloud Shell by retrieving the URL automatically (replace `<your-initials>`):
 
@@ -290,7 +290,7 @@ to zero when idle, eliminating the concept of an "idle VM".
       --name lab3-funcapp-<your-initials> \
       --function-name HttpTriggerFunction \
       --query "invokeUrlTemplate" -o tsv)
-    curl "${FUNC_URL}?name=MYOB"
+    curl "${FUNC_URL}?name=Microsoft"
     ```
 
     > **Note:** In Bash, variable assignments must have **no spaces** around `=`. Writing `FUNC_URL = https://...` causes the error `FUNC_URL: command not found`.
