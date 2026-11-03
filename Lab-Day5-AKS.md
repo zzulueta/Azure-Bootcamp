@@ -373,7 +373,7 @@ so the page reflects the retail scenario rather than the generic nginx placehold
        <html lang="en">
        <head>
          <meta charset="UTF-8" />
-         <title>Retail Order Entry — MYOB</title>
+         <title>Retail Order Entry — Microsoft</title>
          <style>
            body { font-family: Arial, sans-serif; background: #f4f6f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
            .card { background: white; border-radius: 8px; padding: 48px 64px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); text-align: center; max-width: 480px; }
@@ -385,7 +385,7 @@ so the page reflects the retail scenario rather than the generic nginx placehold
        <body>
          <div class="card">
            <h1>Retail Order Entry</h1>
-           <p>Welcome to the MYOB order management portal.<br/>
+           <p>Welcome to the Microsoft order management portal.<br/>
               This front-end is served by <strong>nginx</strong> running inside an
               AKS Pod, exposed via an Azure Load Balancer.</p>
            <div class="badge">Azure Kubernetes Service — Lab Day 5</div>
