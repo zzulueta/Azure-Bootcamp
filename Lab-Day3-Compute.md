@@ -447,7 +447,7 @@ an AKS cluster.
    the **Application URL** link. Confirm the page loads over HTTPS —
    the TLS certificate is provisioned and managed automatically by Azure.
 
-8. Navigate to **Application → Scale**. Review the scaling configuration:
+8. Navigate to **App → Scale**. Review the scaling configuration:
 
    | Setting | Default value | Notes |
    | --- | --- | --- |
@@ -458,7 +458,7 @@ an AKS cluster.
 
    Under **Scale rules**, note the pre-configured **http-scaler** rule of type **HTTP scaling** — this is what triggers scale-out when HTTP traffic increases.
 
-9. Navigate to **Application → Revisions and replicas**. Note that Container Apps
+9. Navigate to **App → Revisions and replicas**. Note that Container Apps
    uses a **revision model** — every deployment creates a new immutable revision.
    By default the app runs in **Single revision mode**, where all traffic goes to
    the latest revision automatically. To enable traffic splitting across multiple
