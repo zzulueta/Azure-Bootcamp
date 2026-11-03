@@ -127,7 +127,7 @@ cost levers available before and after deployment.
 8. Select **Review + create**, then **Create**. Continue with the cost exploration
    steps below while the VM deploys (~2 minutes).
 
-### Explore cost-saving options
+### Explore cost-saving options and Connect to the VM
 
 9.  While the deployment runs, open a new browser tab and navigate to the
     [Azure Pricing Calculator](https://azure.microsoft.com/en-au/pricing/calculator/).
@@ -143,15 +143,21 @@ cost levers available before and after deployment.
 10. Navigate back to **Virtual machines** and wait for `lab3-vm` to show
     **Running** status.
 
-11. Select `lab3-vm`. On the **Overview** blade, select **Stop** to deallocate
+11. Connect to the VM using RDP:
+    - On the **Overview** blade of `lab3-vm`, select **Connect** and then **Connect**.
+    - Download the RDP file, open it, then select **Connect**.
+    - Enter the username and password you specified during VM creation then select **OK**.
+    - You should now be connected to the Windows VM.
+
+12. Select `lab3-vm`. On the **Overview** blade, select **Stop** to deallocate
     the VM. Confirm the shutdown. Once the status shows **Stopped (deallocated)**,
     observe on the **Availability + scale -> Size** blade that you can resize a deallocated VM to any SKU
     with no data loss.
 
-12. Restart the VM by selecting **Start** on the **Overview** blade. Leave it
+13. Restart the VM by selecting **Start** on the **Overview** blade. Leave it
     running — you do not need to connect to it for this lab.
 
-**Key point:** The total cost of a VM has several independent levers — SKU
+14. **Key point:** The total cost of a VM has several independent levers — SKU
 selection, OS disk tier, commitment model (PAYG vs Reserved vs Spot), licensing
 (Azure Hybrid Benefit), and operational discipline (auto-shutdown, right-sizing).
 Addressing all of them together typically produces 50–70 % savings over an
