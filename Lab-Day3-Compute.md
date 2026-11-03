@@ -200,6 +200,7 @@ to zero when idle, eliminating the concept of an "idle VM".
 > Functions Core Tools.
 
 5. Open **Azure Cloud Shell** (Bash) from the portal toolbar. Select Settings then **Go to Classic version**
+   
    Confirm you are using the correct subscription:
 
    ```bash
