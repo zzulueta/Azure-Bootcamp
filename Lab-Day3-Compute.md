@@ -184,7 +184,7 @@ to zero when idle, eliminating the concept of an "idle VM".
    | Function App name | `lab3-funcapp-<your-initials>` (must be globally unique) |
    | Region | **Australia East** |
    | Runtime stack | **Node.js** |
-   | Version | **22 LTS** |
+   | Version | **24 LTS** |
 
 3. Select **Review + create**, then **Create**. The deployment provisions a
    Storage Account automatically — Functions requires storage for state, logs,
