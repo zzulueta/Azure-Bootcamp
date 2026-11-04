@@ -97,7 +97,7 @@ and review what each service offers.
    | Resource group | **RG-Lab4** |
    | Storage account name | `stlab4yourname` (replace *yourname* to keep it globally unique) |
    | Region | **Australia East** |
-   | Preferred Storage Type | **Azure Blob Storage or Azure Data Lake Storage Gen 2** |
+   | Primary Service | **Azure Blob Storage or Azure Data Lake Storage Gen 2** |
    | Performance | **Standard** |
    | Redundancy | **Locally-redundant storage (LRS)** |
 
