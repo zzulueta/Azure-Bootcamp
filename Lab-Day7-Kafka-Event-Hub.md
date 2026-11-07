@@ -1038,10 +1038,16 @@ another. This is useful for the analytics team, who prefer Azure tools.
 3. Turn on Capture for the event hub:
 
    ```bash
-   az eventhubs eventhub update -g $RG --namespace-name $NS -n $HUB \
-     --enable-capture true --capture-interval 60 --capture-size-limit 10485760 \
-     --destination-name EventHubArchive.AzureBlockBlob \
-     --storage-account $SA --blob-container orders-capture
+   az eventhubs eventhub update \
+   -g $RG \
+   --namespace-name $NS \
+   -n $HUB \
+   --enable-capture true \
+   --capture-interval 60 \
+   --capture-size-limit 10485760 \
+   --destination-name EventHubArchive.AzureBlockBlob \
+   --storage-account "$SA_ID" \
+   --blob-container orders-capture
    ```
 
    > **What is Capture?** It saves the stream to Blob Storage as Avro files, every 60 seconds or every 10 MB,
