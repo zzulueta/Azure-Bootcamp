@@ -1158,7 +1158,7 @@ The job applies two simple fraud rules:
    | Storage account | `stfraudlab7yourname` |
    | Container | `fraud-alerts` |
    | Authentication method | **Managed Identity** |
-   | Path pattern | `bulk-orders/{date}/{time}` |
+   | Directory path pattern | `bulk-orders/{date}/{time}` |
    | Serialization | **JSON** |
 
    Select **Connect**. The editor gives the job's identity the **Storage Blob Data Contributor** role on the storage
@@ -1180,7 +1180,7 @@ The job applies two simple fraud rules:
    **greater than** `5`.
 
 9. In the ribbon, add a second **ADLS Gen2** output and connect it to this **Filter** tile. Use the same storage
-   account, container and managed identity, but set the **Path pattern** to `velocity/{date}/{time}`.
+   account, container and managed identity, but set the **Directory path pattern** to `velocity/{date}/{time}`.
 
 ### Start the job
 
