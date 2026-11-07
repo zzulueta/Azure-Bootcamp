@@ -1145,7 +1145,7 @@ The job applies two simple fraud rules:
    for i in 1 2 3; do python producer.py 10 > /dev/null; sleep 10; done
    ```
 
-   If the fields do not appear, select **Autodetect fields**. Check that `qty` has the type **Int**.
+   If the fields do not appear, select **Start streaming preview** & **Autodetect fields**. Check that `qty` has the type **Int**.
 
 ### Add the bulk-order rule
 
