@@ -1223,16 +1223,7 @@ Select **Continue Editing Alert** found at the bottom.
     }
     ```
 
-22. Confirm all observability layers captured the activity:
-
-    | Layer | Where to check | Expected result |
-    | --- | --- | --- |
-    | Event Grid delivery | `events-lab6-yourname` → **Monitoring** → **Metrics** → **Published Events** | Shows 1 event published |
-    | Service Bus message | `servicebus-lab6-yourname` → **Overview** → **Monitoring** → **Messages** | Messages count increases |
-    | Logic App run | `logicapp-lab6-yourname` → Workflows → `process-order` → **Run history** | New Succeeded run for order-004 |
-    | Dashboard | **Lab6 — Platform Health** | **Event Grid — Delivery Health** shows 1 Published Event; **Service Bus Messages** shows 2 additional Active Messages; **Logic App — Workflow Health** shows 1 Completed Run |
-
-    Note: The steps above goes through individual service blades to validate each layer. In a real incident, you would likely start from the dashboard, identify which stage failed, then drill into that service's blade for deeper investigation.
+22. Confirm the event reflected in the dashboard.
 
 ---
 
