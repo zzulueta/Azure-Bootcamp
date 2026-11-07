@@ -839,11 +839,16 @@ In this task you run a short Python script directly in Cloud Shell — no contai
 
 ### Run an instrumented Python application in Cloud Shell
 
-1. Open the Cloud Shell and install the Application Insights SDK:
+1. Open the Cloud Shell (**Bash**). Create a Python virtual environment, activate it, and install the Application Insights SDK:
 
    ```bash
-   pip install azure-monitor-opentelemetry==1.6.4 opentelemetry-instrumentation-requests==0.49b0 --quiet --user
+   python -m venv ~/lab6-venv
+   source ~/lab6-venv/bin/activate
+   pip install azure-monitor-opentelemetry==1.6.4 opentelemetry-instrumentation-requests==0.49b0 --quiet
+   python -c "from azure.monitor.opentelemetry import configure_azure_monitor; print('OK')"
    ```
+
+   The last command should print `OK`.
 
 2. Set the Application Insights connection string copied in **Task 1, Step 8**:
 
