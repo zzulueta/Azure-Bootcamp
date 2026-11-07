@@ -144,7 +144,7 @@ export AUTH=oauth          # use this only after Task 3
 
 ---
 
-## Task 1: Create the Event Hubs namespace and event hub
+## Task 1: Create the Event Hubs namespace and event hubs
 
 **Goal:** create the place where your events will live.
 
@@ -617,9 +617,10 @@ With **Microsoft Entra ID**, a program proves **who it is**, and **Azure RBAC** 
 
 ---
 
-## Task 4: Partitions, consumer groups and duplicates
+## Task 4: Partitions, consumer groups, duplicates and log compaction
 
-**Goal:** learn four ideas by running the producer and consumer you already built.
+**Goal:** learn five ideas. Parts 1–4 use the producer and consumer you already built. Part 5 adds two small programs
+for the compacted event hub.
 
 | Part | Idea | What you will see |
 | --- | --- | --- |
@@ -627,6 +628,7 @@ With **Microsoft Entra ID**, a program proves **who it is**, and **Azure RBAC** 
 | 2 | Consumers in the same group share work | Two consumers split the partitions between them |
 | 3 | Different groups read independently | A new group reads all history. An old group continues from its bookmark |
 | 4 | Duplicates happen | A consumer skips repeated events |
+| 5 | Log compaction keeps the latest value for each key | A compacted event hub gives each customer's current profile, and a tombstone deletes a customer |
 
 > **Picture it as a logbook with 4 pages (partitions).** Producers add lines at the end of a page. A **consumer
 > group** is a reader's name, and each name has its own bookmark. Two readers with the **same** name share the pages.
@@ -777,8 +779,182 @@ restarts" block near the top of this lab, and run `az login --use-device-code` i
    > de-duplicating on a business ID such as `eventId`. This lab keeps the IDs in memory. In production, keep them in
    > a durable store, such as the Day 6 `OrderAudit` table or a database unique constraint.
 
+### Part 5: Log compaction keeps the latest value for each key
+
+**Goal:** keep each customer's current profile in the compacted `customer-profile` event hub, and delete a customer
+with a tombstone.
+
+> **Two ways to keep events:**
+> - **Delete** (`orders-stream`): keep every event for a set time, then remove it. Use it for a history, such as orders.
+> - **Compact** (`customer-profile`): keep the **latest** event for each key. Use it for current state, such as a
+>   customer profile, a product price, or a database row copied with change data capture (CDC).
+>
+> The **key** on each Kafka message is the compaction key. To delete a key, send a **tombstone**: a message with the
+> same key and an empty (`null`) value. Nothing else changes for producers and consumers. They use the same Kafka
+> settings as before.
+
+7. Create a producer that sends profile updates. Each customer gets one or more updates, and the last message is a
+   tombstone for customer `C-500`:
+
+   ```bash
+   cd ~/lab7
+   cat <<'EOF' > profile_producer.py
+   import json, time
+   from confluent_kafka import Producer
+   from kafka_common import kafka_conf
+
+   TOPIC = "customer-profile"
+
+   conf = kafka_conf()
+   conf["enable.idempotence"] = True
+   conf["request.timeout.ms"] = 60000
+   producer = Producer(conf)
+
+
+   def on_delivery(err, msg):
+       if err:
+           print("FAILED:", err, flush=True)
+       else:
+           kind = "TOMBSTONE" if msg.value() is None else "UPDATE"
+           print(f"{kind} key={msg.key().decode()} partition={msg.partition()} offset={msg.offset()}", flush=True)
+
+
+   updates = [
+       ("C-100", "Bronze"), ("C-200", "Bronze"), ("C-300", "Bronze"), ("C-500", "Bronze"),
+       ("C-100", "Silver"), ("C-200", "Silver"), ("C-100", "Gold"),
+   ]
+   for customer, tier in updates:
+       profile = {"customerId": customer, "tier": tier, "ts": time.time()}
+       producer.produce(TOPIC, key=customer, value=json.dumps(profile), callback=on_delivery)
+       producer.poll(0)
+
+   # Tombstone: same key, null value. It marks C-500 for deletion.
+   producer.produce(TOPIC, key="C-500", value=None, callback=on_delivery)
+   producer.flush(30)
+   EOF
+   ```
+
+8. Create a consumer that builds a table of the current profiles:
+
+   ```bash
+   cat <<'EOF' > profile_consumer.py
+   import json, sys, time
+   from confluent_kafka import Consumer
+   from kafka_common import kafka_conf
+
+   TOPIC = "customer-profile"
+   idle_limit = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+
+   conf = kafka_conf()
+   conf.update({
+       "group.id": "profile-cache",
+       "auto.offset.reset": "earliest",   # no saved bookmark, so start at the oldest event
+       "enable.auto.commit": False,       # never save a bookmark: rebuild the table from the start on every run
+   })
+   consumer = Consumer(conf)
+   state = {"last_activity": time.time()}
+
+
+   def on_assign(_consumer, partitions):
+       state["last_activity"] = time.time()
+       print("ASSIGNED partitions:", sorted(p.partition for p in partitions), flush=True)
+
+
+   consumer.subscribe([TOPIC], on_assign=on_assign)
+
+   profiles = {}
+   read = tombstones = 0
+   try:
+       while time.time() - state["last_activity"] < idle_limit:
+           msg = consumer.poll(1.0)
+           if msg is None:
+               continue
+           if msg.error():
+               print("ERROR:", msg.error(), flush=True)
+               continue
+           state["last_activity"] = time.time()
+           read += 1
+           key = msg.key().decode()
+           if msg.value() is None:
+               tombstones += 1
+               profiles.pop(key, None)
+               print(f"TOMBSTONE partition={msg.partition()} offset={msg.offset()} key={key} (deleted)", flush=True)
+           else:
+               profiles[key] = json.loads(msg.value())["tier"]
+               print(f"MSG partition={msg.partition()} offset={msg.offset()} key={key} tier={profiles[key]}", flush=True)
+   finally:
+       consumer.close()
+
+   print("CURRENT PROFILES:")
+   for key in sorted(profiles):
+       print(f"  {key} tier={profiles[key]}")
+   print(f"DONE read={read} tombstones={tombstones} customers={len(profiles)}", flush=True)
+   EOF
+   ```
+
+   > | Program | What it does |
+   > | --- | --- |
+   > | `profile_producer.py` | Sends 7 profile updates with the customer ID as the key, then 1 tombstone (`value=None`) for `C-500` |
+   > | `profile_consumer.py` | Reads the whole event hub from the start and keeps only the latest value for each key. A tombstone removes the key. It never saves a bookmark, so every run rebuilds the table from the beginning, like a new service loading its cache when it starts |
+   >
+   > The consumer handles `None` values. A consumer that expects every message to be JSON, such as `consumer.py`,
+   > would crash on a tombstone.
+
+9. Send the updates, then read them:
+
+   ```bash
+   python profile_producer.py
+   python profile_consumer.py
+   ```
+
+   **What you should see:**
+   - The producer prints 7 `UPDATE` lines and 1 `TOMBSTONE` line. All three `C-100` updates go to the **same
+     partition** with increasing offsets. The `C-500` update and its tombstone also share a partition.
+   - The consumer prints the 8 messages, then:
+
+     ```
+     CURRENT PROFILES:
+       C-100 tier=Gold
+       C-200 tier=Silver
+       C-300 tier=Bronze
+     DONE read=8 tombstones=1 customers=3
+     ```
+
+   **What it means:** the consumer read every message but kept only the latest value for each key. `C-500` is gone
+   because of the tombstone. This works because a key always goes to the same partition, and order is kept inside a
+   partition, so the latest update for a key is always read last.
+
+10. Send the same updates again, and read again:
+
+    ```bash
+    python profile_producer.py > /dev/null
+    python profile_consumer.py | tail -n 5
+    ```
+
+    **What you should see:** the same 3 customers and tiers, with `DONE read=16 tombstones=2 customers=3`.
+
+    **What it means:** the event hub now holds 16 messages, but only 3 values still matter. That is the waste that log
+    compaction removes. In the background, Event Hubs compacts the event hub and removes the older events with the same
+    key. A new reader then reads fewer messages but builds the **same** table.
+
+    > **Will I see compaction happen in this lab?** Probably not. Event Hubs decides when to run compaction, usually
+    > when an event hub has a lot of data. You cannot start it yourself. Even after compaction, you can still see a
+    > few older events with the same key, because new events wait to be compacted.
+    >
+    > **What compaction guarantees:**
+    > - Order inside a key and partition never changes. Compaction only removes older events with the same key.
+    > - Offsets never change. After compaction, some offsets are simply missing.
+    > - A consumer that reads from the start always sees at least the latest event for every key.
+    > - Tombstones stay readable for the **tombstone retention time** (1 hour here), then Event Hubs removes them.
+    >   A reader that starts after that never sees `C-500` at all, which gives the same result.
+
+11. In the portal, open the `customer-profile` event hub and select **Settings** → **Properties**.
+
+    **What you should see:** the cleanup policy is **Compact**, and you cannot change it.
+
 **Check your work:** you saw one customer stay in one partition, two consumers split the partitions, a new group
-read the full history, and a consumer skip 3 duplicates.
+read the full history, a consumer skip 3 duplicates, and a compacted event hub give the latest profile for each
+customer, with `C-500` deleted by a tombstone.
 
 ---
 
@@ -836,13 +1012,28 @@ another. This is useful for the analytics team, who prefer Azure tools.
 
 ### Archive the stream with Capture
 
-2. Create a storage account and a container for the archive:
+2. Create a storage account and a container for the archive, then give yourself permission to write blobs to it:
 
    ```bash
    SA="stlab7yourname"      # 3-24 lowercase letters and digits, unique worldwide
    az storage account create -g $RG -n $SA -l australiaeast --sku Standard_LRS
    az storage container create --account-name $SA -n orders-capture --auth-mode key
+
+   SA_ID=$(az storage account show -g $RG -n $SA --query id -o tsv)
+   ME=$(az ad signed-in-user show --query id -o tsv)
+   az role assignment create --assignee-object-id $ME --assignee-principal-type User \
+     --role "Storage Blob Data Contributor" --scope $SA_ID
    ```
+
+   Wait 1–2 minutes for the role to take effect before the next step.
+
+   > **Why this role?** When you turn on Capture, Event Hubs checks that **you** are allowed to write blobs to the
+   > destination storage account. Writing blobs is a *data* action, so Owner is not enough, just like the Event Hubs
+   > data roles in Task 3. **Storage Blob Data Contributor** gives you the container and blob write permissions that
+   > Capture needs. Without it, the next step fails with `Linked access check failed`.
+   >
+   > If `az ad signed-in-user show` is blocked in your sandbox, add the role in the portal: storage account →
+   > **Access control (IAM)** → **Add role assignment**.
 
 3. Turn on Capture for the event hub:
 
@@ -1106,6 +1297,11 @@ and no dead-letter queue. Azure's other services cover those: **Service Bus** an
 | Consumer exits right away with `processed=0` | The group already saved all its bookmarks. Send more events, or use a different group name. |
 | Consumer shows no `ASSIGNED` line | The group is still joining or rebalancing. Wait up to 45 seconds. |
 | One consumer shows 0 events in Task 4, Part 2 | The group had not finished rebalancing, or the other consumer had already exited. Run the Part 2 block again. |
+| `UNKNOWN_TOPIC_OR_PART` or `Subscribed topic not available: customer-profile` in Task 4, Part 5 | The `customer-profile` event hub does not exist. Create it as in Task 1, step 6. |
+| You cannot select **Compact**, or cannot change the cleanup policy | Compaction is not available in the Basic tier, and the cleanup policy can only be chosen when the event hub is created. Create a new event hub in the Standard namespace. |
+| `TypeError: the JSON object must be str, bytes or bytearray, not NoneType` | A consumer that expects JSON read a tombstone (a `null` value). Read `customer-profile` with `profile_consumer.py`, which handles tombstones. |
+| Task 4, Part 5 still shows every old update for a key | This is expected. Event Hubs runs compaction in the background when it decides to, usually when there is much more data. The current-profiles table is still correct. |
+| `Linked access check failed for capture storage destination` in Task 5, step 3 | You do not have blob write permission on the capture storage account. Assign **Storage Blob Data Contributor** as in Task 5, step 2, wait 1–2 minutes (up to 5), then run step 3 again. |
 | No files in the capture container | Wait for the 60-second capture window to close, then run the list command again. |
 | The Process data card or job creation fails | Make sure the event hub is publicly reachable and the `Microsoft.StreamAnalytics` resource provider is registered (**Subscriptions → Resource providers**). |
 | Stream Analytics input or output says `Unauthorized` | The job's managed identity needs **Azure Event Hubs Data Owner** (or **Data Receiver**) on the event hub and **Storage Blob Data Contributor** on `stfraudlab7yourname`. Roles can take up to 8 minutes. A connection-string input fails because SAS is off. |
@@ -1157,6 +1353,11 @@ runs) cost money while they exist. Stop the job and delete the resources when yo
 - **Delivery is at least once, so consumers must handle duplicates.** An idempotent producer stops duplicates caused by
   retries, but only a consumer that skips repeats protects you from application resends and crashes before saving a
   bookmark.
+
+- **Choose the cleanup policy for the data.** **Delete** keeps every event for a set time, which suits a history such
+  as orders. **Compact** (log compaction) keeps the latest event for each key, which suits current state such as
+  profiles or CDC tables. The Kafka key is the compaction key, a `null` value (tombstone) deletes a key, and the policy
+  can only be set when the event hub is created.
 
 - **One stream, many protocols.** Events written with Kafka can be read over AMQP with Azure tools and saved with
   Capture. Teams are not forced to use Kafka tools.
