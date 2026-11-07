@@ -1288,36 +1288,6 @@ and no dead-letter queue. Azure's other services cover those: **Service Bus** an
 
 ---
 
-## Troubleshooting
-
-| Symptom | Likely cause and fix |
-| --- | --- |
-| `$RG`, `$NS`, `$HUB` or `$EH_NAMESPACE` is empty | Cloud Shell restarted. Run the "If Cloud Shell restarts" block near the top. |
-| `ModuleNotFoundError` | Run the `pip install` command from Task 2, step 2 again. |
-| `pip` prints `dependency resolver ... ansible-core ... requires packaging` | Harmless warning about software Cloud Shell already has. Check the install with `python -c "import confluent_kafka, azure.identity, azure.eventhub; print('OK')"`. |
-| `$ConnectionString` appears empty in a script | Use the heredoc with `'EOF'` in single quotes, as shown, so the shell does not replace `$ConnectionString` or `$Default`. |
-| `SASL authentication error` with SAS in Task 2 | `EH_CONNECTION_STRING` is empty or cut off. Check its length and run Task 2, step 3 again. |
-| Producer prints `GETPID ... Failed to acquire idempotence PID ... retrying` | Harmless start-up warning. The producer retries and succeeds. Continue if delivery lines appear and there is no `FAILED:` line. |
-| `Authorization failed` or `Topic authorization failed` with Entra ID (Task 3, step 5) | The roles have not taken effect yet (wait 1–3 minutes), or they were assigned at a different scope than the namespace. |
-| `DefaultAzureCredential failed ... AudienceNotSupported` | `DefaultAzureCredential` cannot get an Event Hubs token in Cloud Shell. Use `AzureCliCredential` as in `kafka_common.py` and `amqp_reader.py`. |
-| `AzureCliCredential.get_token failed: Please run 'az login'` | Run `az login --use-device-code` (Task 3, step 4), even if `az account show` already works, then try again. |
-| Consumer exits right away with `processed=0` | The group already saved all its bookmarks. Send more events, or use a different group name. |
-| Consumer shows no `ASSIGNED` line | The group is still joining or rebalancing. Wait up to 45 seconds. |
-| One consumer shows 0 events in Task 4, Part 2 | The group had not finished rebalancing, or the other consumer had already exited. Run the Part 2 block again. |
-| `UNKNOWN_TOPIC_OR_PART` or `Subscribed topic not available: customer-profile` in Task 4, Part 5 | The `customer-profile` event hub does not exist. Create it as in Task 1, step 6. |
-| You cannot select **Compact**, or cannot change the cleanup policy | Compaction is not available in the Basic tier, and the cleanup policy can only be chosen when the event hub is created. Create a new event hub in the Standard namespace. |
-| `TypeError: the JSON object must be str, bytes or bytearray, not NoneType` | A consumer that expects JSON read a tombstone (a `null` value). Read `customer-profile` with `profile_consumer.py`, which handles tombstones. |
-| Task 4, Part 5 still shows every old update for a key | This is expected. Event Hubs runs compaction in the background when it decides to, usually when there is much more data. The current-profiles table is still correct. |
-| `Linked access check failed for capture storage destination` in Task 5, step 3 | You do not have blob write permission on the capture storage account. Assign **Storage Blob Data Contributor** as in Task 5, step 2, wait 1–2 minutes (up to 5), then run step 3 again. |
-| No files in the capture container | Wait for the 60-second capture window to close, then run the list command again. |
-| The Process data card or job creation fails | Make sure the event hub is publicly reachable and the `Microsoft.StreamAnalytics` resource provider is registered (**Subscriptions → Resource providers**). |
-| Stream Analytics input or output says `Unauthorized` | The job's managed identity needs **Azure Event Hubs Data Owner** (or **Data Receiver**) on the event hub and **Storage Blob Data Contributor** on `stfraudlab7yourname`. Roles can take up to 8 minutes. A connection-string input fails because SAS is off. |
-| The Data preview shows no fields | No events are flowing. Run the producer from Task 6, step 4, then select **Autodetect fields**. |
-| No files in the `fraud-alerts` container | Check the job is **Running** and that you sent events **after** it started. Files are written after at most 1 minute, so wait 2–3 minutes. Check **Runtime logs** in the editor. |
-| Only `bulk-orders` files appear | No customer had more than 5 orders in one 1-minute window, for example because the burst crossed a minute boundary. Run `python producer.py 60` again. |
-
----
-
 ## Cleanup
 
 **Note:** Event Hubs Standard, the storage accounts and the Stream Analytics job (billed per streaming unit while it
