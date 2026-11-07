@@ -1166,20 +1166,21 @@ The job applies two simple fraud rules:
 
 ### Add the velocity rule
 
-7. In the ribbon, under **Operations**, select **Group by** and connect it to the **Event Hub** tile. Set it up:
+7. In the ribbon, under **Operations**, select **Group by** and connect it to the **Event Hub** tile output. Set it up:
 
    | Setting | Value |
    | --- | --- |
-   | Aggregation | **Count** on `eventId` |
-   | Group by | `customerId` |
-   | Time window | **Tumbling**, `1` minute |
+   | Aggregations | **Count** on `eventId` then select **Add** |
+   | Group aggregations by | `customerId` |
+   | Time window | **Tumbling**, `1` minute then select **Done** |
+
 
    > A *tumbling window* cuts time into fixed 1-minute blocks. The job counts each customer's orders in each block.
 
 8. Add a second **Filter** tile after **Group by**. Pick the count field that **Group by** creates, and set it
-   **greater than** `5`.
+   **greater than** `5`. Select **Done**.
 
-9. In the ribbon, add a second **ADLS Gen2** output and connect it to this **Filter** tile. Use the same storage
+9. In the ribbon, select **+ Outputs** then add a second **ADLS Gen2** output and connect it to this **Filter** tile. Use the same storage
    account, container and managed identity, but set the **Directory path pattern** to `velocity/{date}/{time}`.
 
 ### Start the job
