@@ -21,10 +21,10 @@ no servers to manage.
 
 In this lab you will:
 
-1. Create an Event Hubs namespace and an event hub (this is where the events live)
+1. Create an Event Hubs namespace and two event hubs (this is where the events live)
 2. Connect a Kafka producer and consumer with a shared key (SAS)
 3. Switch to Microsoft Entra ID sign-in and turn the shared keys off
-4. Learn how partitions, consumer groups and duplicates behave
+4. Learn how partitions, consumer groups, duplicates and log compaction behave
 5. Read the same events with a non-Kafka tool, and save a copy to storage with Capture
 6. Build a no-code Azure Stream Analytics job that finds possible fraud
 7. Decide when to use Event Hubs, Service Bus or Event Grid
@@ -47,6 +47,9 @@ In this lab you will:
 | **Azure RBAC** | Roles that decide what a signed-in identity is allowed to do |
 | **AMQP** | Another protocol Event Hubs understands. Azure's own tools use it |
 | **Capture** | An Event Hubs feature that saves the stream to storage as files |
+| **Cleanup policy** | How an event hub removes old events. **Delete** removes events after a set time. **Compact** keeps the latest event for each key |
+| **Log compaction** | The **Compact** cleanup policy. Event Hubs keeps the latest event for each key and removes older events with the same key |
+| **Tombstone** | An event with a key and an empty (`null`) value. On a compacted event hub it deletes that key |
 
 ## Pre-requisites
 
@@ -59,14 +62,14 @@ In this lab you will:
 - Azure Cloud Shell (**Bash**, in the browser). You do not need to install anything
 - Basic knowledge of Day 6 (Service Bus and Event Grid), which comes back in Task 7
 
-## Estimated Timing: 90 minutes
+## Estimated Timing: 100 minutes
 
 | Task | What you do |
 | --- | --- |
-| 1 | Create the Event Hubs namespace and event hub |
+| 1 | Create the Event Hubs namespace and two event hubs |
 | 2 | Send and read events with a shared key (SAS) |
 | 3 | Switch to Microsoft Entra ID and turn SAS off |
-| 4 | Learn partitions, consumer groups and duplicates |
+| 4 | Learn partitions, consumer groups, duplicates and log compaction |
 | 5 | Read with AMQP and archive with Capture |
 | 6 | Find possible fraud with Stream Analytics (no code) |
 | 7 | Choose the right messaging service, then clean up |
@@ -99,12 +102,15 @@ RG-Lab7 (Resource Group)
 ├── Event Hubs Namespace (ehns-lab7-yourname)         [Standard, 1 TU]
 │   │     Kafka endpoint: ehns-lab7-yourname.servicebus.windows.net:9093
 │   │
-│   └── Event Hub = Kafka topic: orders-stream        [4 partitions]
-│         ├── Kafka groups (auto-created, offsets stored by the service):
-│         │     analytics, fraud-detection, audit-replay
-│         ├── Event Hubs consumer group: $Default       (AMQP reader)
-│         ├── Event Hubs consumer group: (created by the Stream Analytics job)
-│         └── Capture ──► Blob container: orders-capture (Avro files)
+│   ├── Event Hub = Kafka topic: orders-stream        [4 partitions, Delete policy, 24 h]
+│   │     ├── Kafka groups (auto-created, offsets stored by the service):
+│   │     │     analytics, fraud-detection, audit-replay
+│   │     ├── Event Hubs consumer group: $Default       (AMQP reader)
+│   │     ├── Event Hubs consumer group: (created by the Stream Analytics job)
+│   │     └── Capture ──► Blob container: orders-capture (Avro files)
+│   │
+│   └── Event Hub = Kafka topic: customer-profile     [4 partitions, Compact policy]
+│         └── Kafka group: profile-cache (never saves a bookmark, so it always reads from the start)
 │
 ├── Storage Account (stlab7yourname)                  [Capture archive]
 │
@@ -118,6 +124,7 @@ RG-Lab7 (Resource Group)
 └── Cloud Shell clients
       ├── producer.py   (Kafka protocol, SAS or Entra ID)
       ├── consumer.py   (Kafka protocol, consumer groups, skips duplicates)
+      ├── profile_producer.py / profile_consumer.py (Kafka protocol, log compaction and tombstones)
       └── amqp_reader.py (native azure-eventhub SDK, AMQP protocol)
 ```
 
@@ -199,9 +206,36 @@ decides which part of the stored log to read. Here is how the names match:
    > - **4 partitions** means 4 lanes. Events with the same key always use the same lane, so their order is kept.
    > - **Retention 24 hours** means Event Hubs keeps every event for a day, even after it has been read.
 
+### Create a compacted event hub
+
+6. Go back to **Event Hubs** in the namespace, select **+ Event Hub** again and fill in:
+
+   | Setting | Value |
+   | --- | --- |
+   | Name | `customer-profile` |
+   | Partition count | `4` |
+   | Cleanup policy | **Compact** |
+   | Tombstone retention time (hrs) | `1` |
+
+   Select **Review + create**, then **Create**. You will use this event hub in Task 4, Part 5.
+
+   > **Why a second event hub?**
+   > - `orders-stream` uses the **Delete** policy. It keeps **every** order for 24 hours. This is right for a history
+   >   of events, where each order matters.
+   > - `customer-profile` uses the **Compact** policy (log compaction). It will hold each customer's **current**
+   >   profile. Event Hubs keeps the latest event for each key and removes older events with the same key over time.
+   >
+   > **Things to know about compaction:**
+   > - You can only choose the cleanup policy when you **create** an event hub. You cannot change it later. That is
+   >   why the lab uses a separate event hub and does not change `orders-stream`.
+   > - A compacted event hub has no retention time. It keeps the latest event for each key until you delete it.
+   > - **Tombstone retention time** is how long a delete marker (a *tombstone*) stays readable, so readers have time
+   >   to see that a key was deleted.
+   > - The Basic tier does not support compaction. On Standard, a compacted event hub can hold up to 1 GB per partition.
+
 ### Note the Kafka address
 
-6. On the namespace **Overview** page, find the **Host name**: `ehns-lab7-yourname.servicebus.windows.net`.
+7. On the namespace **Overview** page, find the **Host name**: `ehns-lab7-yourname.servicebus.windows.net`.
    Add `:9093` to the end and you have the Kafka `bootstrap.servers` address. Unlike a real Kafka cluster,
    there is only **one address** for all partitions.
 
@@ -218,8 +252,8 @@ You do not create any consumer groups for the Kafka programs in this lab.
 > Each group has its own bookmark, so each group reads the whole stream on its own. This is how the analytics
 > team and the fraud team can read every event without affecting each other.
 
-**Check your work:** you have a namespace called `ehns-lab7-yourname` with an event hub called `orders-stream`
-that has 4 partitions.
+**Check your work:** you have a namespace called `ehns-lab7-yourname` with two event hubs: `orders-stream`
+(4 partitions, cleanup policy **Delete**) and `customer-profile` (4 partitions, cleanup policy **Compact**).
 
 ---
 
