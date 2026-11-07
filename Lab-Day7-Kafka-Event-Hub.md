@@ -1117,9 +1117,9 @@ The job applies two simple fraud rules:
 
 2. In the portal, open your namespace, then open the `orders-stream` event hub. Under **Features**, select **Process
    data**, and select **Start** on the **Filter and ingest to ADLS Gen2** card. Name the job `asa-fraud-lab7-yourname`
-   and select **Create**. To connect to the Event Hub, select **Managed Identity: System assigned** in the Authentication mode and select **Connect**.
+   and select **Create**. 
 
-3. Select the **Event Hub** tile and set the input:
+3. To connect to the **Event Hub** and set the following:
 
    | Setting | Value |
    | --- | --- |
