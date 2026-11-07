@@ -364,6 +364,7 @@ lightweight, near-real-time event notification at scale.
    | Resource group | **RG-Lab6** |
    | Storage account name | `orderslab6yourname` (lowercase, no hyphens, globally unique) |
    | Region | **Australia East** |
+   | Primary service | **Azure Blob Storage or Azure Data Lake Storage** |
    | Performance | **Standard** |
    | Redundancy | **Locally-redundant storage (LRS)** |
 
