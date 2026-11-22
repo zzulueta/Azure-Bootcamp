@@ -1104,17 +1104,6 @@ another. This is useful for the analytics team, who prefer Azure tools.
    empty if a partition got no events in that window. If the list is empty, wait a minute and run the list command
    again.
 
-### Watch the traffic
-
-5. In the portal, open your namespace → **Metrics**. Add **Incoming Messages**, **Outgoing Messages** and **Captured
-   Messages** (Sum), and set the time range to **Last 30 minutes**.
-
-   **What you should see:** a spike for each producer run. Incoming and outgoing counts differ because each consumer
-   group reads the stream separately, and captured messages show up after each capture window closes. You can send this
-   same Azure Monitor data to the Log Analytics workspace you used in Day 6.
-
-**Check your work:** the AMQP reader printed events and ended with `total` equal to `expected`, and files appear in the `orders-capture` container.
-
 ---
 
 ## Task 6: Find possible fraud with Stream Analytics (no code)
