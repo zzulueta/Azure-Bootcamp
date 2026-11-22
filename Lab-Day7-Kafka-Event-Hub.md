@@ -718,7 +718,7 @@ restarts" block near the top of this lab, and run `az login --use-device-code` i
    ```
 
    **What you should see:** the last line is `DONE group=fraud-detection processed=N duplicates=0`. Write down `N`. It
-   should be about 100, because it counts every event you have sent so far (roughly 20 + 10 + 3 + 30 + 40, or more
+   should be about 103, because it counts every event you have sent so far (roughly 20 + 10 + 3 + 30 + 40, or more
    if you ran the producer extra times).
 
    **What it means:** `fraud-detection` is new, so it has no bookmark. The setting `auto.offset.reset=earliest`
