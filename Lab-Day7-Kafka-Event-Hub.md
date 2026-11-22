@@ -1174,8 +1174,7 @@ The job applies two simple fraud rules:
 
 ### Add the bulk-order rule
 
-5. Select the **Filter** tile. Set **qty** **equals** `3`.
-
+5. Select the **Filter** tile. Set **qty** **equals** `3`. Select **Done**.
 6. Select the **Azure Data Lake Storage Gen2** tile and set the output:
 
    | Setting | Value |
