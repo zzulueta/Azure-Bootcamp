@@ -1209,8 +1209,7 @@ The job applies two simple fraud rules:
 
 ### Start the job
 
-10. Optional: select **Get static preview** on each tile to check the results. Then select **Save**, then **Start**.
-    Set **Output start time** to **Now**, keep the recommended **Streaming units**, and select **Start**.
+10. Select **Save**. Set **Output start time** to **Now**, keep the recommended **Streaming units**, and select **Start**.
 
 11. In the event hub, open **Process data** → **Stream Analytics jobs**. Select **Refresh** until the status is
     **Running**. This takes up to 2 minutes.
