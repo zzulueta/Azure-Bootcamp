@@ -1152,7 +1152,7 @@ The job applies two simple fraud rules:
    | Serialization | **JSON** |
    | Authentication method | **Managed Identity** (system-assigned) |
 
-   Select **Connect**.
+   Select **Connect** and then **Save** the Stream Analytics job.
 
    > **Why a managed identity?** SAS is off, so a connection-string input would fail. When you pick a managed identity,
    > the editor gives the job's identity the **Azure Event Hubs Data Owner** role. This needs your Owner rights. In
