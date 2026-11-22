@@ -979,6 +979,7 @@ another. This is useful for the analytics team, who prefer Azure tools.
    from azure.identity import AzureCliCredential
 
    counts = Counter()
+   done = threading.Event()
    client = EventHubConsumerClient(
        fully_qualified_namespace=os.environ["EH_NAMESPACE"],
        eventhub_name="orders-stream",
@@ -986,30 +987,64 @@ another. This is useful for the analytics team, who prefer Azure tools.
        credential=AzureCliCredential(),
    )
 
+   # Ask each partition for its last sequence number: that is the finish line
+   targets = {}
+   for pid in client.get_partition_ids():
+       props = client.get_partition_properties(pid)
+       if not props["is_empty"]:
+           targets[pid] = props["last_enqueued_sequence_number"]
+   remaining = set(targets)
+   lock = threading.Lock()
+
+
+   def partition_done(pid):
+       with lock:
+           remaining.discard(pid)
+           if not remaining:
+               done.set()
+
 
    def on_event(partition_context, event):
-       counts[partition_context.partition_id] += 1
+       pid = partition_context.partition_id
+       if event is None:                    # this one partition was idle for max_wait_time
+           partition_done(pid)
+           return
+       counts[pid] += 1
        if sum(counts.values()) <= 5:
-           print(f"partition={partition_context.partition_id} body={event.body_as_str()}")
+           print(f"partition={pid} body={event.body_as_str()}")
+       if pid in remaining and event.sequence_number >= targets[pid]:
+           partition_done(pid)              # this partition is fully read
 
 
-   # Stop after 20 seconds
-   threading.Timer(20, client.close).start()
-   with client:
-       client.receive(on_event=on_event, starting_position="-1")   # -1 = start of the stream
+   receiver = threading.Thread(
+       target=client.receive,
+       kwargs=dict(on_event=on_event, starting_position="-1", max_wait_time=10),
+       daemon=True,
+   )
+   receiver.start()
+   done.wait(timeout=120)                   # safety net: never wait forever
+   client.close()
+   receiver.join(timeout=5)
 
    print("AMQP events read per partition:", dict(counts))
+   print("total:", sum(counts.values()), "expected:", sum(targets.values()) + len(targets))
    EOF
 
-   python producer.py 10 > /dev/null
    python amqp_reader.py
    ```
 
-   **What you should see:** the first five JSON events, then a count per partition.
+   **What you should see:** the first five JSON events, a count per partition, and a last line where `total` equals
+   `expected`. The totals cover every event sent in the earlier tasks, including the 3 duplicate copies from Task 4,
+   because this reader starts at the oldest event and does not de-duplicate.
 
    **What it means:** the events were written with the **Kafka protocol** and read with **AMQP**, with no conversion.
    Azure Stream Analytics (Task 6) and other Azure services use this same native interface, so teams do not need
    Kafka tools. Every event hub has a `$Default` consumer group, which is the one this reader uses.
+
+   > **How the reader knows when to stop:** a fixed timer can close the client before a slow or full partition has
+   > been read. Instead, the reader first asks each partition for its **last sequence number**, then stops a
+   > partition when it reaches that number or has been idle for `max_wait_time` seconds. The client closes only when
+   > every partition is done, so `total` always matches `expected`.
 
 ### Archive the stream with Capture
 
@@ -1078,7 +1113,7 @@ another. This is useful for the analytics team, who prefer Azure tools.
    group reads the stream separately, and captured messages show up after each capture window closes. You can send this
    same Azure Monitor data to the Log Analytics workspace you used in Day 6.
 
-**Check your work:** the AMQP reader printed events, and files appear in the `orders-capture` container.
+**Check your work:** the AMQP reader printed events and ended with `total` equal to `expected`, and files appear in the `orders-capture` container.
 
 ---
 
