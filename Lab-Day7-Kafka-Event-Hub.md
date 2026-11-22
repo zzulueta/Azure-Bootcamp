@@ -692,8 +692,9 @@ restarts" block near the top of this lab, and run `az login --use-device-code` i
      Task 3, plus the 30 from Part 1). It has all four partitions because nobody else is in the group.
    - **After consumer 2 joins:** consumer 1 prints `REVOKED`, then a smaller `ASSIGNED`, for example `[0, 1]`.
      Consumer 2 prints `ASSIGNED` with the rest, for example `[2, 3]`. This can take up to about 45 seconds.
-   - **Totals:** both consumers are above zero. Consumer 1's total includes its first ~33 events, so the two
-     totals add up to about 73 (33 + 40).
+   - **Totals:** both consumers are above zero. Consumer 1's total includes its first ~33 new events, so the two
+     totals add up to about 53 (33 + 20). Consumer 2 has only the events it read after joining the group, which is why its total is smaller than consumer 1's at 20 events.
+   
 
    **What it means:**
    - Both consumers use the group name `analytics`, so Kafka treats them as one team and divides the partitions.
