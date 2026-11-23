@@ -692,8 +692,7 @@ restarts" block near the top of this lab, and run `az login --use-device-code` i
      Task 3, plus the 30 from Part 1). It has all four partitions because nobody else is in the group.
    - **After consumer 2 joins:** consumer 1 prints `REVOKED`, then a smaller `ASSIGNED`, for example `[0, 1]`.
      Consumer 2 prints `ASSIGNED` with the rest, for example `[2, 3]`. This can take up to about 45 seconds.
-   - **Totals:** both consumers are above zero. Consumer 1's total includes its first ~33 new events, so the two
-     totals add up to about 53 (33 + 20). Consumer 2 has only the events it read after joining the group, which is why its total is smaller than consumer 1's at 20 events.
+   - **Totals:** both consumers are above zero. Consumer 1's total includes its first ~33 new events, plus the new events after consumer 2 joined. Consumer 2 has only the events it read after joining the group. The exact numbers may vary depending the random customers provided by the producer. But what's important is that the total would equal 40, the number of events sent by the producer in this block.
    
 
    **What it means:**
